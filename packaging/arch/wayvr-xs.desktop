@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WayVR XS (WiVRn)
+Comment=Split your ultrawide desktop into movable VR panels
+Exec=/usr/bin/wayvr-xs --openxr --show
+TryExec=/usr/bin/wayvr-xs
+Icon=wayvr-xs
+Terminal=false
+Categories=Utility;X-WiVRn-VR;
+Keywords=VR;WiVRn;OpenXR;ultrawide;overlay;
+X-XR-Plugin=true
+X-XR-Plugin-Exec=/usr/bin/wayvr-xs --openxr --show

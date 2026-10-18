@@ -1,0 +1,88 @@
+name: Build Arch package
+
+on:
+  pull_request:
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - Cargo.lock
+      - 'wayvr/src/assets/**'
+      - 'dash-frontend/assets/**'
+      - 'packaging/arch/**'
+      - 'docs/**'
+      - '.github/workflows/build-arch.yml'
+  push:
+    branches: [feat/xs-ultrawide-panels]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arch-package-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 60
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prepare Arch tools
+        run: pacman -Syu --noconfirm --needed git sudo desktop-file-utils shellcheck vulkan-swrast
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.SOURCE_COMMIT }}
+      - name: Check packaging syntax
+        run: |
+          bash -n packaging/arch/PKGBUILD
+          shellcheck --shell=bash --exclude=SC2034,SC2154 packaging/arch/PKGBUILD
+          desktop-file-validate packaging/arch/wayvr-xs.desktop
+      - name: Prepare unprivileged build
+        run: |
+          useradd --create-home builder
+          printf 'builder ALL=(root) NOPASSWD: /usr/bin/pacman\n' > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+          mkdir -p /build/source /build/package /build/cargo
+          cp -a "$GITHUB_WORKSPACE/." /build/source/
+          cp packaging/arch/PKGBUILD /build/package/
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /build/cargo
+            /build/package/src/target
+          key: arch-xs-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'packaging/arch/PKGBUILD') }}
+          restore-keys: arch-xs-${{ runner.arch }}-
+      - name: Build and test exact source commit
+        run: |
+          chown -R builder:builder /build
+          runuser -u builder -- env \
+            WAYVR_XS_SOURCE="git+file:///build/source#commit=$SOURCE_COMMIT" \
+            CARGO_HOME=/build/cargo CARGO_BUILD_JOBS=2 \
+            bash -c 'cd /build/package && makepkg --syncdeps --noconfirm'
+      - name: Install and smoke-test package
+        run: |
+          pacman -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
+          /usr/bin/wayvr-xs --help
+          desktop-file-validate /usr/share/applications/wayvr-xs.desktop
+          test -s /usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg
+          test -s /usr/share/doc/wayvr-xs/ARCH-INSTALL.md
+          pacman -Qk wayvr-xs-git
+          mkdir -p artifacts
+          cp /build/package/wayvr-xs-git-*.pkg.tar.zst artifacts/
+          printf '%s\n' "$SOURCE_COMMIT" > artifacts/SOURCE-COMMIT.txt
+          cd artifacts
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wayvr-xs-arch-x86_64
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

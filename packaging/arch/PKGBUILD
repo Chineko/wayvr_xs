@@ -1,0 +1,57 @@
+# Build with: makepkg -si
+pkgname=wayvr-xs-git
+pkgver=26.8.0.r0.g0000000
+pkgrel=1
+pkgdesc='Ultrawide desktop panels for KDE Wayland and WiVRn (OpenXR)'
+arch=('x86_64')
+url='https://github.com/Chineko/wayvr_xs'
+license=('GPL-3.0-only')
+depends=(
+  'alsa-lib' 'dav1d' 'dbus' 'fontconfig' 'gcc-libs' 'glibc' 'libinput'
+  'libpipewire' 'libxkbcommon' 'openxr' 'pipewire' 'systemd-libs'
+  'vulkan-icd-loader' 'vulkan-driver' 'wayland' 'xdg-desktop-portal'
+)
+makedepends=('clang' 'cmake' 'git' 'python' 'rust')
+optdepends=(
+  'xdg-desktop-portal-kde: screen sharing on KDE Plasma'
+  'xwayland-satellite: run X11 applications inside WayVR'
+)
+options=('!lto' '!debug')
+# CI overrides this URL to build the exact checked-out PR commit.
+source=("wayvr-xs::${WAYVR_XS_SOURCE:-git+https://github.com/Chineko/wayvr_xs.git#branch=feat/xs-ultrawide-panels}")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$srcdir/wayvr-xs"
+  local version
+  version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' wayvr/Cargo.toml | head -n1)
+  printf '%s.r%s.g%s' "$version" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd "$srcdir/wayvr-xs"
+  cargo fetch --locked --target x86_64-unknown-linux-gnu
+}
+
+build() {
+  cd "$srcdir/wayvr-xs"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --release --frozen -p wayvr --no-default-features --features wayland,openxr
+}
+
+check() {
+  cd "$srcdir/wayvr-xs"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo test --release --frozen -p wayvr --no-default-features --features wayland,openxr
+}
+
+package() {
+  cd "$srcdir/wayvr-xs"
+  install -Dm755 "$srcdir/target/release/wayvr" "$pkgdir/usr/bin/wayvr-xs"
+  install -Dm644 packaging/arch/wayvr-xs.desktop \
+    "$pkgdir/usr/share/applications/wayvr-xs.desktop"
+  install -Dm644 wayvr/wayvr.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg"
+  install -Dm644 docs/XS-ULTRAWIDE.md "$pkgdir/usr/share/doc/wayvr-xs/XS-ULTRAWIDE.md"
+  install -Dm644 docs/ARCH-INSTALL.md "$pkgdir/usr/share/doc/wayvr-xs/ARCH-INSTALL.md"
+  install -Dm644 wayvr/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

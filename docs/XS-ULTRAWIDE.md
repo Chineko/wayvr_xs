@@ -37,6 +37,9 @@ Window mirrors retain their existing behavior.
 
 ## Build for Arch Linux and WiVRn
 
+For a pacman-managed install, KDE launcher, and prebuilt CI packages, use the
+[Arch installation guide](ARCH-INSTALL.md).
+
 Install the native dependencies from the upstream
 [building guide](https://wayvr.org/docs/basics/building-from-source/), plus a Rust toolchain.
 From this repository's root:
