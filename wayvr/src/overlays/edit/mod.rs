@@ -172,6 +172,23 @@ pub struct EditModeBackendWrapper {
     can_render_inner: bool,
 }
 
+impl EditModeBackendWrapper {
+    /// Access the content without removing an active edit panel. Portal
+    /// completion can replace the content while the pointer is editing it.
+    pub(crate) fn content_backend_mut(
+        backend: &mut Box<dyn OverlayBackend>,
+    ) -> &mut Box<dyn OverlayBackend> {
+        if (backend.as_ref() as &dyn Any).is::<Self>() {
+            let wrapper = (backend.as_mut() as &mut dyn Any)
+                .downcast_mut::<Self>()
+                .expect("Edit wrapper type already checked");
+            &mut wrapper.inner
+        } else {
+            backend
+        }
+    }
+}
+
 impl OverlayBackend for EditModeBackendWrapper {
     fn init(&mut self, app: &mut crate::state::AppState) -> anyhow::Result<()> {
         self.inner.init(app)?;
