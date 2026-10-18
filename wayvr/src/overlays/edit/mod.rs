@@ -347,7 +347,10 @@ impl OverlayBackend for EditModeBackendWrapper {
     fn screen_source(&self) -> Option<std::sync::Arc<str>> {
         self.inner.screen_source()
     }
-    fn screen_region(&self, region: wlx_common::screen_region::ScreenRegion) -> Option<Box<dyn OverlayBackend>> {
+    fn screen_region(
+        &self,
+        region: wlx_common::screen_region::ScreenRegion,
+    ) -> Option<Box<dyn OverlayBackend>> {
         self.inner.screen_region(region)
     }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue> {
@@ -404,9 +407,12 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
                             if !test_button(data) || !test_duration(&button, app) {
                                 return Ok(EventResult::Pass);
                             }
-                            app.tasks.enqueue(TaskType::Overlay(OverlayTask::ScreenLayout(
-                                OverlaySelector::Id(*state.id.borrow()), layout, false,
-                            )));
+                            app.tasks
+                                .enqueue(TaskType::Overlay(OverlayTask::ScreenLayout(
+                                    OverlaySelector::Id(*state.id.borrow()),
+                                    layout,
+                                    false,
+                                )));
                             Ok(EventResult::Consumed)
                         })
                     }
@@ -645,7 +651,10 @@ fn reset_panel(
     panel.state.pos.reset(&mut com, &state.positioning.into());
     panel.state.lock.reset(&mut com, state.interactable);
     panel.state.tabs.reset(&mut com);
-    panel.state.tabs.set_tab_visible(&mut com, "split", owc.backend.screen_source().is_some());
+    panel
+        .state
+        .tabs
+        .set_tab_visible(&mut com, "split", owc.backend.screen_source().is_some());
 
     if let Some(stereo) = attrib_value!(
         owc.backend.get_attrib(BackendAttrib::Stereo),

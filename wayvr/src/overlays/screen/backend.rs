@@ -6,7 +6,10 @@ use std::{
 };
 
 use glam::{Affine2, DVec2, Vec2, vec2};
-use wlx_capture::{WlxCapture, frame::{Transform, MouseMeta}};
+use wlx_capture::{
+    WlxCapture,
+    frame::{MouseMeta, Transform},
+};
 use wlx_common::screen_region::ScreenRegion;
 
 use crate::{
@@ -90,8 +93,13 @@ impl ScreenBackend {
         Self {
             name,
             shared: Rc::new(RefCell::new(SharedCapture {
-                capture_type, capture, frame: None, generation: 0,
-                last_poll: None, last_request: None, active: 0,
+                capture_type,
+                capture,
+                frame: None,
+                generation: 0,
+                last_poll: None,
+                last_request: None,
+                active: 0,
             })),
             region: ScreenRegion::FULL,
             generation: 0,
@@ -168,52 +176,84 @@ impl ScreenBackend {
 }
 
 impl Drop for ScreenBackend {
-    fn drop(&mut self) { self.set_capture_active(false); }
+    fn drop(&mut self) {
+        self.set_capture_active(false);
+    }
 }
 
 impl ScreenBackend {
     fn set_capture_active(&mut self, active: bool) {
-        if self.active == active { return; }
+        if self.active == active {
+            return;
+        }
         let mut shared = self.shared.borrow_mut();
         self.active = active;
         if active {
-            if shared.active == 0 { shared.capture.resume(); }
+            if shared.active == 0 {
+                shared.capture.resume();
+            }
             shared.active += 1;
         } else {
             shared.active -= 1;
-            if shared.active == 0 { shared.capture.pause(); }
+            if shared.active == 0 {
+                shared.capture.pause();
+            }
         }
     }
 
     fn desktop_uv(&self, uv: Vec2) -> Vec2 {
-        self.region.desktop_uv(self.display_width, uv.to_array()).into()
+        self.region
+            .desktop_uv(self.display_width, uv.to_array())
+            .into()
     }
 }
 
 impl OverlayBackend for ScreenBackend {
-    fn screen_source(&self) -> Option<Arc<str>> { Some(self.name.clone()) }
+    fn screen_source(&self) -> Option<Arc<str>> {
+        Some(self.name.clone())
+    }
 
     fn screen_region(&self, region: ScreenRegion) -> Option<Box<dyn OverlayBackend>> {
         // Stereo source packing and desktop splitting are separate modes.
-        if self.stereo.is_some_and(|s| s != StereoMode::None) { return None; }
+        if self.stereo.is_some_and(|s| s != StereoMode::None) {
+            return None;
+        }
         Some(Box::new(Self {
-            name: self.name.clone(), shared: self.shared.clone(), region,
-            generation: 0, active: false, display_width: self.display_width,
-            pipeline: None, cur_frame: None, meta: None,
-            mouse_transform: self.mouse_transform, interaction_transform: None,
-            stereo: self.stereo.map(|_| StereoMode::None), stereo_full_frame: false,
-            stereo_adjust_mouse: false, logical_pos: self.logical_pos,
-            logical_size: self.logical_size, mouse_transform_override: self.mouse_transform_override,
+            name: self.name.clone(),
+            shared: self.shared.clone(),
+            region,
+            generation: 0,
+            active: false,
+            display_width: self.display_width,
+            pipeline: None,
+            cur_frame: None,
+            meta: None,
+            mouse_transform: self.mouse_transform,
+            interaction_transform: None,
+            stereo: self.stereo.map(|_| StereoMode::None),
+            stereo_full_frame: false,
+            stereo_adjust_mouse: false,
+            logical_pos: self.logical_pos,
+            logical_size: self.logical_size,
+            mouse_transform_override: self.mouse_transform_override,
             just_resumed: true,
         }))
     }
 
     fn init(&mut self, app: &mut AppState) -> anyhow::Result<()> {
         if self.region == ScreenRegion::FULL {
-            if let Some(split) = app.session.config.screen_splits.iter().find(|s| s.source == self.name) {
+            if let Some(split) = app
+                .session
+                .config
+                .screen_splits
+                .iter()
+                .find(|s| s.source == self.name)
+            {
                 app.tasks.enqueue(crate::backend::task::TaskType::Overlay(
                     crate::backend::task::OverlayTask::ScreenLayout(
-                        crate::windowing::OverlaySelector::Name(self.name.clone()), split.layout, true,
+                        crate::windowing::OverlaySelector::Name(self.name.clone()),
+                        split.layout,
+                        true,
                     ),
                 ));
             }
@@ -272,7 +312,9 @@ impl OverlayBackend for ScreenBackend {
             };
 
             let user_data = WlxCaptureIn::new(self.name.clone(), app, dma_exporter);
-            shared.capture.init(dmabuf_formats, user_data, receive_callback);
+            shared
+                .capture
+                .init(dmabuf_formats, user_data, receive_callback);
             shared.capture.request_new_frame();
             return Ok(ShouldRender::Unable);
         }
@@ -288,7 +330,9 @@ impl OverlayBackend for ScreenBackend {
         let generation = shared.generation;
         let frame = if generation != self.generation || self.just_resumed {
             shared.frame.clone()
-        } else { None };
+        } else {
+            None
+        };
         drop(shared);
 
         if let Some(frame) = frame {
@@ -319,10 +363,10 @@ impl OverlayBackend for ScreenBackend {
             let [u0, u1] = self.region.uv(self.display_width);
             // Crop in oriented display coordinates, then map to backing-image coordinates.
             let source_uv = match frame.format.transform {
-                Transform::Rotated90 => [0.0, 1.0-u1, 1.0, 1.0-u0],
-                Transform::Rotated180 | Transform::Flipped => [1.0-u1, 0.0, 1.0-u0, 1.0],
+                Transform::Rotated90 => [0.0, 1.0 - u1, 1.0, 1.0 - u0],
+                Transform::Rotated180 | Transform::Flipped => [1.0 - u1, 0.0, 1.0 - u0, 1.0],
                 Transform::Rotated270 | Transform::Flipped90 => [0.0, u0, 1.0, u1],
-                Transform::Flipped270 => [0.0, 1.0-u1, 1.0, 1.0-u0],
+                Transform::Flipped270 => [0.0, 1.0 - u1, 1.0, 1.0 - u0],
                 _ => [u0, 0.0, u1, 1.0],
             };
 
@@ -372,18 +416,23 @@ impl OverlayBackend for ScreenBackend {
             // Metadata cursor coordinates are normalized in the backing image.
             let (x, y) = (mouse.x, mouse.y);
             let uv = match capture.format.transform {
-                Transform::Rotated90 => [1.0-y, x],
-                Transform::Rotated180 => [1.0-x, 1.0-y],
-                Transform::Rotated270 => [y, 1.0-x],
-                Transform::Flipped => [1.0-x, y],
+                Transform::Rotated90 => [1.0 - y, x],
+                Transform::Rotated180 => [1.0 - x, 1.0 - y],
+                Transform::Rotated270 => [y, 1.0 - x],
+                Transform::Flipped => [1.0 - x, y],
                 Transform::Flipped90 => [y, x],
-                Transform::Flipped180 => [x, 1.0-y],
-                Transform::Flipped270 => [1.0-y, 1.0-x],
+                Transform::Flipped180 => [x, 1.0 - y],
+                Transform::Flipped270 => [1.0 - y, 1.0 - x],
                 _ => [x, y],
             };
-            self.region.local_uv(self.display_width, uv).map(|[x,y]| MouseMeta { x, y })
+            self.region
+                .local_uv(self.display_width, uv)
+                .map(|[x, y]| MouseMeta { x, y })
         });
-        self.pipeline.as_mut().unwrap().render(image, mouse.as_ref(), app, rdr)?;
+        self.pipeline
+            .as_mut()
+            .unwrap()
+            .render(image, mouse.as_ref(), app, rdr)?;
         let frame_number = crate::FRAME_COUNTER.load(std::sync::atomic::Ordering::Relaxed);
         let mut shared = self.shared.borrow_mut();
         if shared.last_request != Some(frame_number) {
@@ -427,7 +476,9 @@ impl OverlayBackend for ScreenBackend {
             && (!app.session.config.focus_follows_mouse_mode
                 || app.input_state.pointers[hit.pointer].now.move_mouse)
         {
-            let pos = self.mouse_transform.transform_point2(self.desktop_uv(hit.uv));
+            let pos = self
+                .mouse_transform
+                .transform_point2(self.desktop_uv(hit.uv));
             app.hid_provider
                 .inner
                 .mouse_move(DVec2::new(pos.x as _, pos.y as _));
@@ -458,8 +509,12 @@ impl OverlayBackend for ScreenBackend {
         // Position first: the hover throttle may still leave the OS cursor on
         // another panel when a trigger press arrives.
         if pressed {
-            let pos = self.mouse_transform.transform_point2(self.desktop_uv(hit.uv));
-            app.hid_provider.inner.mouse_move(DVec2::new(pos.x as _, pos.y as _));
+            let pos = self
+                .mouse_transform
+                .transform_point2(self.desktop_uv(hit.uv));
+            app.hid_provider
+                .inner
+                .mouse_move(DVec2::new(pos.x as _, pos.y as _));
         }
         app.hid_provider.inner.send_button(btn, pressed);
     }
@@ -478,7 +533,9 @@ impl OverlayBackend for ScreenBackend {
     }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue> {
         match attrib {
-            BackendAttrib::Stereo if self.region == ScreenRegion::FULL => self.stereo.map(BackendAttribValue::Stereo),
+            BackendAttrib::Stereo if self.region == ScreenRegion::FULL => {
+                self.stereo.map(BackendAttribValue::Stereo)
+            }
             BackendAttrib::MouseTransform => Some(BackendAttribValue::MouseTransform(
                 self.mouse_transform_override,
             )),
@@ -558,13 +615,24 @@ mod tests {
             _: &[wlx_capture::DrmFormat],
             _: WlxCaptureIn,
             _: fn(&WlxCaptureIn, wlx_capture::frame::WlxFrame) -> Option<WlxCaptureOut>,
-        ) {}
-        fn is_ready(&self) -> bool { true }
-        fn supports_dmbuf(&self) -> bool { false }
-        fn receive(&mut self) -> Option<WlxCaptureOut> { None }
+        ) {
+        }
+        fn is_ready(&self) -> bool {
+            true
+        }
+        fn supports_dmbuf(&self) -> bool {
+            false
+        }
+        fn receive(&mut self) -> Option<WlxCaptureOut> {
+            None
+        }
         fn request_new_frame(&mut self) {}
-        fn pause(&mut self) { self.pauses.set(self.pauses.get() + 1); }
-        fn resume(&mut self) { self.resumes.set(self.resumes.get() + 1); }
+        fn pause(&mut self) {
+            self.pauses.set(self.pauses.get() + 1);
+        }
+        fn resume(&mut self) {
+            self.resumes.set(self.resumes.get() + 1);
+        }
     }
 
     #[test]
@@ -572,11 +640,25 @@ mod tests {
         let pauses = Rc::new(Cell::new(0));
         let resumes = Rc::new(Cell::new(0));
         let mut source = ScreenBackend::new_raw(
-            "DP-1".into(), XrBackend::OpenXR, CaptureType::PipeWire,
-            Box::new(MockCapture { pauses: pauses.clone(), resumes: resumes.clone() }),
+            "DP-1".into(),
+            XrBackend::OpenXR,
+            CaptureType::PipeWire,
+            Box::new(MockCapture {
+                pauses: pauses.clone(),
+                resumes: resumes.clone(),
+            }),
         );
-        let panel = source.screen_region(ScreenRegion { start: 1, end: 2, total: 2 }).unwrap();
-        let mut panel = (panel as Box<dyn std::any::Any>).downcast::<ScreenBackend>().ok().unwrap();
+        let panel = source
+            .screen_region(ScreenRegion {
+                start: 1,
+                end: 2,
+                total: 2,
+            })
+            .unwrap();
+        let mut panel = (panel as Box<dyn std::any::Any>)
+            .downcast::<ScreenBackend>()
+            .ok()
+            .unwrap();
         assert!(Rc::ptr_eq(&source.shared, &panel.shared));
         source.set_capture_active(true);
         panel.set_capture_active(true);

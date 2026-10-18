@@ -160,9 +160,16 @@ pub enum OverlayEventData {
 
 pub trait OverlayBackend: Any {
     /// Physical screen identity; absent on mirrors and other non-desktop backends.
-    fn screen_source(&self) -> Option<Arc<str>> { None }
+    fn screen_source(&self) -> Option<Arc<str>> {
+        None
+    }
     /// New rendering state over the same capture stream.
-    fn screen_region(&self, _region: wlx_common::screen_region::ScreenRegion) -> Option<Box<dyn OverlayBackend>> { None }
+    fn screen_region(
+        &self,
+        _region: wlx_common::screen_region::ScreenRegion,
+    ) -> Option<Box<dyn OverlayBackend>> {
+        None
+    }
 
     /// Called once, before the first frame is rendered
     fn init(&mut self, app: &mut AppState) -> anyhow::Result<()>;

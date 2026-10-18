@@ -208,7 +208,9 @@ where
     #[allow(clippy::too_many_lines)]
     pub fn handle_task(&mut self, app: &mut AppState, task: OverlayTask) -> anyhow::Result<()> {
         match task {
-            OverlayTask::ScreenLayout(sel, layout, restoring) => self.screen_layout(app, &sel, layout, restoring)?,
+            OverlayTask::ScreenLayout(sel, layout, restoring) => {
+                self.screen_layout(app, &sel, layout, restoring)?
+            }
             OverlayTask::ShowHide => self.show_hide(app),
             OverlayTask::ToggleSet(set) => {
                 self.switch_or_toggle_set(app, set);
@@ -543,15 +545,29 @@ impl<T> OverlayWindowManager<T> {
         selector: &OverlaySelector,
         layout: wlx_common::config::ScreenLayout,
         restoring: bool,
-    ) -> anyhow::Result<()> where T: Default {
-        use wlx_common::config::{ScreenLayout, ScreenSplit};
+    ) -> anyhow::Result<()>
+    where
+        T: Default,
+    {
         use crate::windowing::window::OverlayWindowConfig;
         use glam::{Quat, vec3};
+        use wlx_common::config::{ScreenLayout, ScreenSplit};
 
-        let Some(selected) = self.id_by_selector(selector) else { return Ok(()); };
-        let Some(source) = self.overlays[selected].config.backend.screen_source() else { return Ok(()); };
-        let Some(source_id) = self.lookup(&source) else { return Ok(()); };
-        let panel_name = |index| -> std::sync::Arc<str> { format!("{source} [XS {layout:?} {}]", index + 1).into() };
+        let Some(selected) = self.id_by_selector(selector) else {
+            return Ok(());
+        };
+        let Some(source) = self.overlays[selected].config.backend.screen_source() else {
+            return Ok(());
+        };
+        let Some(source_id) = self.lookup(&source) else {
+            return Ok(());
+        };
+        if restoring && self.global_set.hidden_overlays.arc_get(&source).is_some() {
+            self.overlays[source_id].config.global = true;
+        }
+        let panel_name = |index| -> std::sync::Arc<str> {
+            format!("{source} [XS {layout:?} {}]", index + 1).into()
+        };
         let regions = layout.regions();
         if restoring && (0..regions.len()).all(|i| self.lookup(&panel_name(i)).is_some()) {
             return Ok(());
@@ -561,7 +577,9 @@ impl<T> OverlayWindowManager<T> {
         let mut panels = Vec::new();
         if layout != ScreenLayout::Full {
             let source_config = &mut self.overlays[source_id].config;
-            let full_aspect = source_config.backend.frame_meta()
+            let full_aspect = source_config
+                .backend
+                .frame_meta()
                 .map(|m| m.extent[0] as f32 / m.extent[1].max(1) as f32)
                 .unwrap_or(32.0 / 9.0);
             let head = snap_upright(app.input_state.hmd, Vec3A::Y);
@@ -574,17 +592,28 @@ impl<T> OverlayWindowManager<T> {
                 let fraction = (region.end - region.start) as f32 / region.total as f32;
                 let width = total_width * fraction;
                 let height = total_width / full_aspect;
-                let center = total_width * ((region.start + region.end) as f32 / (2 * region.total) as f32 - 0.5);
-                let mut state = source_config.default_state.clone();
-                state.transform = head * Affine3A::from_scale_rotation_translation(
-                    Vec3::splat(width.max(height)), Quat::IDENTITY, vec3(center, -0.1, -1.3),
-                );
+                let center = total_width
+                    * ((region.start + region.end) as f32 / (2 * region.total) as f32 - 0.5);
+                let mut state = source_config
+                    .active_state
+                    .as_ref()
+                    .unwrap_or(&source_config.default_state)
+                    .clone();
+                state.transform = head
+                    * Affine3A::from_scale_rotation_translation(
+                        Vec3::splat(width.max(height)),
+                        Quat::IDENTITY,
+                        vec3(center, -0.1, -1.3),
+                    );
                 save_transform(&mut state, app);
                 // reset() uses the saved positioning-relative transform.
                 let config = OverlayWindowConfig {
-                    name: panel_name(i), category: OverlayCategory::Screen,
-                    input_focus: source_config.input_focus, default_state: state,
-                    global: source_config.global, show_on_spawn: false,
+                    name: panel_name(i),
+                    category: OverlayCategory::Screen,
+                    input_focus: source_config.input_focus,
+                    default_state: state,
+                    global: source_config.global,
+                    show_on_spawn: false,
                     ..OverlayWindowConfig::from_backend(backend)
                 };
                 panels.push(config);
@@ -592,43 +621,79 @@ impl<T> OverlayWindowManager<T> {
         }
 
         if !restoring {
-            let old: Vec<_> = self.overlays.iter().filter_map(|(id, o)| {
-                (id != source_id && o.config.backend.screen_source().as_ref() == Some(&source)).then_some(id)
-            }).collect();
-            for id in old { self.handle_task(app, OverlayTask::DropImmediate(OverlaySelector::Id(id)))?; }
-            app.session.config.screen_splits.retain(|s| s.source != source);
+            let old: Vec<_> = self
+                .overlays
+                .iter()
+                .filter_map(|(id, o)| {
+                    (id != source_id && o.config.backend.screen_source().as_ref() == Some(&source))
+                        .then_some(id)
+                })
+                .collect();
+            for id in old {
+                // Edit wrappers use ManuallyDrop. Return the panel to the pool
+                // and recover its backend before retiring a replaced region.
+                self.wrappers
+                    .unwrap_edit_mode(&mut self.overlays[id].config, app)?;
+                self.handle_task(app, OverlayTask::DropImmediate(OverlaySelector::Id(id)))?;
+            }
+            app.session
+                .config
+                .screen_splits
+                .retain(|s| s.source != source);
             if layout != ScreenLayout::Full {
-                app.session.config.screen_splits.push(ScreenSplit { source: source.clone(), layout });
+                app.session.config.screen_splits.push(ScreenSplit {
+                    source: source.clone(),
+                    layout,
+                });
             }
         }
 
         if layout == ScreenLayout::Full {
-            self.handle_task(app, OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOn))?;
+            self.handle_task(
+                app,
+                OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOn),
+            )?;
         } else {
             let target_set = self.current_set.unwrap_or(self.restore_set);
             for mut config in panels {
-                if self.lookup(&config.name).is_some() { continue; }
+                if self.lookup(&config.name).is_some() {
+                    continue;
+                }
                 let name = config.name.clone();
-                if restoring && (self.global_set.inactive_overlays.arc_get(&name).is_some() || self.global_set.hidden_overlays.arc_get(&name).is_some()) {
+                if restoring
+                    && (self.global_set.inactive_overlays.arc_get(&name).is_some()
+                        || self.global_set.hidden_overlays.arc_get(&name).is_some())
+                {
                     config.global = true;
                 }
-                let has_saved_state = self.sets.iter().any(|s| s.inactive_overlays.arc_get(&name).is_some() || s.hidden_overlays.arc_get(&name).is_some())
-                    || self.global_set.inactive_overlays.arc_get(&name).is_some() || self.global_set.hidden_overlays.arc_get(&name).is_some();
+                let has_saved_state =
+                    self.sets.iter().any(|s| {
+                        s.inactive_overlays.arc_get(&name).is_some()
+                            || s.hidden_overlays.arc_get(&name).is_some()
+                    }) || self.global_set.inactive_overlays.arc_get(&name).is_some()
+                        || self.global_set.hidden_overlays.arc_get(&name).is_some();
                 let id = self.add(OverlayWindowData::from_config(config), app);
                 if !restoring || !has_saved_state {
                     let o = &mut self.overlays[id];
                     if self.current_set.is_some() || o.config.global {
                         o.config.activate(app, false);
                     } else {
-                        self.sets[target_set].overlays.insert(id, o.config.default_state.clone());
+                        self.sets[target_set]
+                            .overlays
+                            .insert(id, o.config.default_state.clone());
                     }
                 }
             }
             // Keep the original in the overlay list for toggling, but hide it in
             // the active layout. It still owns the same shared capture session.
-            self.handle_task(app, OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOff))?;
+            self.handle_task(
+                app,
+                OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOff),
+            )?;
             if let Some(state) = self.sets[target_set].overlays.remove(source_id) {
-                self.sets[target_set].hidden_overlays.arc_set(source.clone(), state);
+                self.sets[target_set]
+                    .hidden_overlays
+                    .arc_set(source.clone(), state);
             }
         }
         self.overlays_changed(app)?;
