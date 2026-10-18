@@ -47,7 +47,8 @@ jobs:
           mkdir -p /build/source /build/package /build/cargo
           cp -a "$GITHUB_WORKSPACE/." /build/source/
           cp packaging/arch/PKGBUILD /build/package/
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: build-cache
         with:
           path: |
             /build/cargo
@@ -55,6 +56,7 @@ jobs:
           # Rebuild after Arch library/toolchain updates, including SONAME changes.
           key: arch-xs-v2-${{ runner.arch }}-${{ steps.dependencies.outputs.fingerprint }}-${{ hashFiles('Cargo.lock', 'packaging/arch/PKGBUILD') }}
       - name: Build and test exact source commit
+        id: build
         run: |
           chown -R builder:builder /build
           runuser -u builder -- env \
@@ -63,7 +65,11 @@ jobs:
             bash -c 'cd /build/package && makepkg --noconfirm'
       - name: Install and smoke-test package
         run: |
-          pacman -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
+          # The minimal Arch image skips documentation via NoExtract. Test the
+          # full package as it would be installed on a normal desktop instead.
+          sed '/^[[:space:]]*NoExtract[[:space:]]*=/d' /etc/pacman.conf > /tmp/wayvr-xs-pacman.conf
+          pacman --config /tmp/wayvr-xs-pacman.conf -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
+          pacman -Ql wayvr-xs-git
           /usr/bin/wayvr-xs --help
           desktop-file-validate /usr/share/applications/wayvr-xs.desktop
           test -s /usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg
@@ -80,3 +86,11 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
+      - name: Cache verified build outputs
+        if: always() && steps.build.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /build/cargo
+            /build/package/src/target
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
