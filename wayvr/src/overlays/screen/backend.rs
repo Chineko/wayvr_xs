@@ -519,7 +519,15 @@ impl OverlayBackend for ScreenBackend {
         app.hid_provider.inner.send_button(btn, pressed);
     }
 
-    fn on_scroll(&mut self, app: &mut AppState, _hit: &PointerHit, mut delta: WheelDelta) {
+    fn on_scroll(&mut self, app: &mut AppState, hit: &PointerHit, mut delta: WheelDelta) {
+        // Hover motion can be throttled or frozen after a click. Position the
+        // cursor in this region before scrolling, including with two pointers.
+        let pos = self
+            .mouse_transform
+            .transform_point2(self.desktop_uv(hit.uv));
+        app.hid_provider
+            .inner
+            .mouse_move(DVec2::new(pos.x as _, pos.y as _));
         // convert to v120 value; maximum deflect scrolls at half speed
         delta.x *= 60.0;
         delta.y *= 60.0;
