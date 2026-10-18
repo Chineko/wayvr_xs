@@ -307,8 +307,39 @@ const fn def_max_height() -> u16 {
 	1440
 }
 
+/// Presets for one physical desktop, displayed as independent VR panels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScreenLayout {
+    Full,
+    Dual,
+    Thirds,
+    Center,
+}
+
+impl ScreenLayout {
+    pub fn regions(self) -> Vec<crate::screen_region::ScreenRegion> {
+        use crate::screen_region::ScreenRegion;
+        let (edges, total): (&[u32], u32) = match self {
+            Self::Full => (&[0, 1], 1),
+            Self::Dual => (&[0, 1, 2], 2),
+            Self::Thirds => (&[0, 1, 2, 3], 3),
+            Self::Center => (&[0, 1, 3, 4], 4),
+        };
+        edges.windows(2).map(|e| ScreenRegion { start: e[0], end: e[1], total }).collect()
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ScreenSplit {
+    pub source: Arc<str>,
+    pub layout: ScreenLayout,
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct GeneralConfig {
+    #[serde(default)]
+    pub screen_splits: Vec<ScreenSplit>,
+
 	#[serde(default = "def_theme_path")]
 	pub theme_path: Arc<str>,
 

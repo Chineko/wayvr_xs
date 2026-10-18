@@ -42,6 +42,7 @@
                 <TopButton sticky="0" id="top_curve" src="@/edit/curve.svg" tooltip="EDIT_MODE.ADJUST_CURVATURE" press="::EditModeTab curve" />
                 <TopButton sticky="0" id="top_stereo" src="@/edit/3d.svg" tooltip="EDIT_MODE.STEREO_3D_MODE.TITLE" press="::EditModeTab stereo" />
                 <TopButton sticky="0" id="top_mouse" src="@/edit/normal.svg" tooltip="EDIT_MODE.MOUSE.TITLE" press="::EditModeTab mouse" />
+                <TopButton sticky="0" id="top_split" src="@/edit/screen.svg" tooltip="EDIT_MODE.SPLIT.TITLE" press="::EditModeTab split" />
                 <!-- TopButton sticky="0" id="top_move" src="@/edit/move-all.svg" tooltip="EDIT_MODE.MOVE_PRESS_AND_DRAG" / -->
                 <!-- TopButton sticky="0" id="top_resize" src="@/edit/resize.svg" tooltip="EDIT_MODE.RESIZE_PRESS_AND_DRAG" / -->
                 <TopButtonDanger src="@/edit/delete.svg" tooltip="EDIT_MODE.DELETE" release="::EditModeDelete" />
@@ -70,6 +71,15 @@
                     <CheckBox id="align_box" translation="EDIT_MODE.ALIGN_TO_HMD" tooltip_side="bottom" />
                     <CheckBox id="block_input_box" translation="EDIT_MODE.BLOCK_INPUT" tooltip_side="bottom" />
                   </div>
+                </div>
+              </div>
+              <div id="tab_split" display="none" height="100" flex_direction="column" align_items="center" gap="8">
+                <label translation="EDIT_MODE.SPLIT.HELP" />
+                <div gap="8" justify_content="center">
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout full"><label translation="EDIT_MODE.SPLIT.FULL" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout dual"><label translation="EDIT_MODE.SPLIT.DUAL" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout thirds"><label translation="EDIT_MODE.SPLIT.THIRDS" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout center"><label translation="EDIT_MODE.SPLIT.CENTER" /></Button>
                 </div>
               </div>
               <div id="tab_stereo" display="none" height="100" flex_direction="column">

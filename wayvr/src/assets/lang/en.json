@@ -92,6 +92,14 @@
 			"SPLIT_RIGHT_LEFT": "RIGHT→LEFT",
 			"SPLIT_TOP_BOTTOM": "TOP→BOTTOM",
 			"TITLE": "3D Stereo Mode"
+		},
+		"SPLIT": {
+			"TITLE": "Split desktop",
+			"HELP": "One desktop capture - independent VR panels",
+			"FULL": "Full desktop",
+			"DUAL": "Two halves",
+			"THIRDS": "Three columns",
+			"CENTER": "Wide center"
 		}
 	},
 	"ALTTAB": {

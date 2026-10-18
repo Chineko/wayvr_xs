@@ -344,6 +344,12 @@ impl OverlayBackend for EditModeBackendWrapper {
     fn get_interaction_transform(&mut self) -> Option<glam::Affine2> {
         self.inner.get_interaction_transform()
     }
+    fn screen_source(&self) -> Option<std::sync::Arc<str>> {
+        self.inner.screen_source()
+    }
+    fn screen_region(&self, region: wlx_common::screen_region::ScreenRegion) -> Option<Box<dyn OverlayBackend>> {
+        self.inner.screen_region(region)
+    }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue> {
         self.inner.get_attrib(attrib)
     }
@@ -387,6 +393,23 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
                 let button = button.clone();
 
                 let callback: EventCallback<AppState, EditModeState> = match command {
+                    "::EditModeScreenLayout" => {
+                        let layout = match args.next() {
+                            Some("dual") => wlx_common::config::ScreenLayout::Dual,
+                            Some("thirds") => wlx_common::config::ScreenLayout::Thirds,
+                            Some("center") => wlx_common::config::ScreenLayout::Center,
+                            _ => wlx_common::config::ScreenLayout::Full,
+                        };
+                        Box::new(move |_common, data, app, state| {
+                            if !test_button(data) || !test_duration(&button, app) {
+                                return Ok(EventResult::Pass);
+                            }
+                            app.tasks.enqueue(TaskType::Overlay(OverlayTask::ScreenLayout(
+                                OverlaySelector::Id(*state.id.borrow()), layout, false,
+                            )));
+                            Ok(EventResult::Consumed)
+                        })
+                    }
                     "::EditModeToggleLock" => Box::new(move |common, data, app, state| {
                         if !test_button(data) || !test_duration(&button, app) {
                             return Ok(EventResult::Pass);
@@ -539,7 +562,7 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
     panel.state.lock = InteractLockHandler::new(&mut panel)?;
     panel.state.tabs = ButtonPaneTabSwitcher::new(
         &mut panel,
-        &["none", "pos", "alpha", "curve", "stereo", "mouse"],
+        &["none", "pos", "alpha", "curve", "stereo", "mouse", "split"],
     )?;
 
     set_up_checkbox(&mut panel, "additive_box", cb_assign_additive)?;
@@ -622,6 +645,7 @@ fn reset_panel(
     panel.state.pos.reset(&mut com, &state.positioning.into());
     panel.state.lock.reset(&mut com, state.interactable);
     panel.state.tabs.reset(&mut com);
+    panel.state.tabs.set_tab_visible(&mut com, "split", owc.backend.screen_source().is_some());
 
     if let Some(stereo) = attrib_value!(
         owc.backend.get_attrib(BackendAttrib::Stereo),

@@ -120,6 +120,7 @@ pub enum GlobalChange {
 pub type ModifyOverlayTask = dyn FnOnce(&mut AppState, &mut OverlayWindowConfig) + Send;
 pub type CreateOverlayTask = dyn FnOnce(&mut AppState) -> Option<OverlayWindowConfig> + Send;
 pub enum OverlayTask {
+    ScreenLayout(OverlaySelector, wlx_common::config::ScreenLayout, bool),
     AddSet,
     ToggleSet(usize),
     SwitchSet(Option<usize>),

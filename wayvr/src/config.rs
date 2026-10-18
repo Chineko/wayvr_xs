@@ -288,6 +288,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
 
 #[derive(Serialize)]
 pub struct AutoState {
+    pub screen_splits: Vec<wlx_common::config::ScreenSplit>,
     pub sets: Vec<SerializedWindowSet>,
     pub spawn_overlays: Vec<Arc<str>>,
     pub last_set: u32,
@@ -302,6 +303,7 @@ fn get_state_path() -> PathBuf {
 
 pub fn save_state(config: &GeneralConfig) -> anyhow::Result<()> {
     let conf = AutoState {
+        screen_splits: config.screen_splits.clone(),
         sets: config.sets.clone(),
         last_set: config.last_set,
         spawn_overlays: config.spawn_overlays.clone(),

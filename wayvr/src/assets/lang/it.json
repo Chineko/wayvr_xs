@@ -50,7 +50,15 @@
 		"POS_STATIC": "Statico: non fa parte di alcun set, nessun ricentramento.",
 		"POSITIONING": "Posizionamento",
 		"RESIZE_PRESS_AND_DRAG": "Ridimensiona (premi e trascina)",
-		"RESIZE_CORNER": "Trascina per ridimensionare"
+		"RESIZE_CORNER": "Trascina per ridimensionare",
+		"SPLIT": {
+			"TITLE": "Split desktop",
+			"HELP": "One desktop capture - independent VR panels",
+			"FULL": "Full desktop",
+			"DUAL": "Two halves",
+			"THIRDS": "Three columns",
+			"CENTER": "Wide center"
+		}
 	},
 	"DEFINITIONS": {
 		"ANCHORED": "Ancorato",

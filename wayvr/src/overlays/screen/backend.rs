@@ -1,10 +1,13 @@
 use std::{
+    cell::RefCell,
+    rc::Rc,
     sync::{Arc, LazyLock, atomic::AtomicU64},
     time::Instant,
 };
 
 use glam::{Affine2, DVec2, Vec2, vec2};
-use wlx_capture::{WlxCapture, frame::Transform};
+use wlx_capture::{WlxCapture, frame::{Transform, MouseMeta}};
+use wlx_common::screen_region::ScreenRegion;
 
 use crate::{
     XrBackend,
@@ -46,10 +49,23 @@ pub(super) enum CaptureType {
     Xshm,
 }
 
-pub struct ScreenBackend {
-    name: Arc<str>,
+struct SharedCapture {
     capture_type: CaptureType,
     capture: Box<dyn WlxCapture<WlxCaptureIn, WlxCaptureOut>>,
+    frame: Option<WlxCaptureOut>,
+    generation: u64,
+    last_poll: Option<usize>,
+    last_request: Option<usize>,
+    active: usize,
+}
+
+pub struct ScreenBackend {
+    name: Arc<str>,
+    shared: Rc<RefCell<SharedCapture>>,
+    region: ScreenRegion,
+    generation: u64,
+    active: bool,
+    display_width: u32,
     pipeline: Option<ScreenPipeline>,
     cur_frame: Option<WlxCaptureOut>,
     meta: Option<FrameMeta>,
@@ -73,8 +89,14 @@ impl ScreenBackend {
     ) -> Self {
         Self {
             name,
-            capture_type,
-            capture,
+            shared: Rc::new(RefCell::new(SharedCapture {
+                capture_type, capture, frame: None, generation: 0,
+                last_poll: None, last_request: None, active: 0,
+            })),
+            region: ScreenRegion::FULL,
+            generation: 0,
+            active: false,
+            display_width: 1,
             pipeline: None,
             cur_frame: None,
             meta: None,
@@ -145,14 +167,66 @@ impl ScreenBackend {
     }
 }
 
+impl Drop for ScreenBackend {
+    fn drop(&mut self) { self.set_capture_active(false); }
+}
+
+impl ScreenBackend {
+    fn set_capture_active(&mut self, active: bool) {
+        if self.active == active { return; }
+        let mut shared = self.shared.borrow_mut();
+        self.active = active;
+        if active {
+            if shared.active == 0 { shared.capture.resume(); }
+            shared.active += 1;
+        } else {
+            shared.active -= 1;
+            if shared.active == 0 { shared.capture.pause(); }
+        }
+    }
+
+    fn desktop_uv(&self, uv: Vec2) -> Vec2 {
+        self.region.desktop_uv(self.display_width, uv.to_array()).into()
+    }
+}
+
 impl OverlayBackend for ScreenBackend {
-    fn init(&mut self, _app: &mut AppState) -> anyhow::Result<()> {
+    fn screen_source(&self) -> Option<Arc<str>> { Some(self.name.clone()) }
+
+    fn screen_region(&self, region: ScreenRegion) -> Option<Box<dyn OverlayBackend>> {
+        // Stereo source packing and desktop splitting are separate modes.
+        if self.stereo.is_some_and(|s| s != StereoMode::None) { return None; }
+        Some(Box::new(Self {
+            name: self.name.clone(), shared: self.shared.clone(), region,
+            generation: 0, active: false, display_width: self.display_width,
+            pipeline: None, cur_frame: None, meta: None,
+            mouse_transform: self.mouse_transform, interaction_transform: None,
+            stereo: self.stereo.map(|_| StereoMode::None), stereo_full_frame: false,
+            stereo_adjust_mouse: false, logical_pos: self.logical_pos,
+            logical_size: self.logical_size, mouse_transform_override: self.mouse_transform_override,
+            just_resumed: true,
+        }))
+    }
+
+    fn init(&mut self, app: &mut AppState) -> anyhow::Result<()> {
+        if self.region == ScreenRegion::FULL {
+            if let Some(split) = app.session.config.screen_splits.iter().find(|s| s.source == self.name) {
+                app.tasks.enqueue(crate::backend::task::TaskType::Overlay(
+                    crate::backend::task::OverlayTask::ScreenLayout(
+                        crate::windowing::OverlaySelector::Name(self.name.clone()), split.layout, true,
+                    ),
+                ));
+            }
+        }
         Ok(())
     }
     fn should_render(&mut self, app: &mut AppState) -> anyhow::Result<ShouldRender> {
-        if !self.capture.is_ready() {
+        self.set_capture_active(true);
+        let shared_rc = self.shared.clone();
+        let mut shared = shared_rc.borrow_mut();
+        if !shared.capture.is_ready() {
             let supports_dmabuf =
-                app.gfx.capabilities().external_memory_dma_buf && self.capture.supports_dmbuf();
+                app.gfx.capabilities().external_memory_dma_buf && shared.capture.supports_dmbuf();
 
             let capture_method = app.session.config.capture_method;
 
@@ -185,7 +259,7 @@ impl OverlayBackend for ScreenBackend {
                     "Using GPU capture. If you're having issues with screens, go to the Dashboard's Settings tab and switch 'Wayland capture method' to a CPU option!"
                 );
 
-                let dma_exporter = if matches!(self.capture_type, CaptureType::ScreenCopy) {
+                let dma_exporter = if matches!(shared.capture_type, CaptureType::ScreenCopy) {
                     Some(MyFirstDmaExporter::new(
                         app.gfx.clone(),
                         app.gfx_extras.drm_formats.clone(),
@@ -198,13 +272,28 @@ impl OverlayBackend for ScreenBackend {
             };
 
             let user_data = WlxCaptureIn::new(self.name.clone(), app, dma_exporter);
-            self.capture
-                .init(dmabuf_formats, user_data, receive_callback);
-            self.capture.request_new_frame();
+            shared.capture.init(dmabuf_formats, user_data, receive_callback);
+            shared.capture.request_new_frame();
             return Ok(ShouldRender::Unable);
         }
 
-        if let Some(frame) = self.capture.receive() {
+        let frame_number = crate::FRAME_COUNTER.load(std::sync::atomic::Ordering::Relaxed);
+        if shared.last_poll != Some(frame_number) {
+            shared.last_poll = Some(frame_number);
+            if let Some(frame) = shared.capture.receive() {
+                shared.frame = Some(frame);
+                shared.generation += 1;
+            }
+        }
+        let generation = shared.generation;
+        let frame = if generation != self.generation || self.just_resumed {
+            shared.frame.clone()
+        } else { None };
+        drop(shared);
+
+        if let Some(frame) = frame {
+            self.generation = generation;
+            self.just_resumed = false;
             let stereo = self.stereo.unwrap_or(StereoMode::None);
             let mut meta = frame.get_frame_meta(&app.session.config, stereo);
 
@@ -222,6 +311,20 @@ impl OverlayBackend for ScreenBackend {
                     }
                 }
             }
+
+            let full_extent = meta.extent;
+            self.display_width = full_extent[0].max(1);
+            let [start, end] = self.region.pixels(self.display_width);
+            meta.extent[0] = (end - start).max(1);
+            let [u0, u1] = self.region.uv(self.display_width);
+            // Crop in oriented display coordinates, then map to backing-image coordinates.
+            let source_uv = match frame.format.transform {
+                Transform::Rotated90 => [0.0, 1.0-u1, 1.0, 1.0-u0],
+                Transform::Rotated180 | Transform::Flipped => [1.0-u1, 0.0, 1.0-u0, 1.0],
+                Transform::Rotated270 | Transform::Flipped90 => [0.0, u0, 1.0, u1],
+                Transform::Flipped270 => [0.0, 1.0-u1, 1.0, 1.0-u0],
+                _ => [u0, 0.0, u1, 1.0],
+            };
 
             if let Some(pipeline) = self.pipeline.as_mut() {
                 if self.meta.is_some_and(|old| old.extent != meta.extent)
@@ -242,6 +345,7 @@ impl OverlayBackend for ScreenBackend {
                 self.interaction_transform = Some(ui_transform(meta.extent));
             }
 
+            self.pipeline.as_mut().unwrap().set_source_uv(source_uv);
             self.meta = Some(meta);
             self.cur_frame = Some(frame);
 
@@ -264,27 +368,47 @@ impl OverlayBackend for ScreenBackend {
         let image = capture.image.clone();
 
         // want panic; must be Some if cur_frame is also Some
-        self.pipeline
-            .as_mut()
-            .unwrap()
-            .render(image, capture.mouse.as_ref(), app, rdr)?;
-        self.capture.request_new_frame();
+        let mouse = capture.mouse.as_ref().and_then(|mouse| {
+            // Metadata cursor coordinates are normalized in the backing image.
+            let (x, y) = (mouse.x, mouse.y);
+            let uv = match capture.format.transform {
+                Transform::Rotated90 => [1.0-y, x],
+                Transform::Rotated180 => [1.0-x, 1.0-y],
+                Transform::Rotated270 => [y, 1.0-x],
+                Transform::Flipped => [1.0-x, y],
+                Transform::Flipped90 => [y, x],
+                Transform::Flipped180 => [x, 1.0-y],
+                Transform::Flipped270 => [1.0-y, 1.0-x],
+                _ => [x, y],
+            };
+            self.region.local_uv(self.display_width, uv).map(|[x,y]| MouseMeta { x, y })
+        });
+        self.pipeline.as_mut().unwrap().render(image, mouse.as_ref(), app, rdr)?;
+        let frame_number = crate::FRAME_COUNTER.load(std::sync::atomic::Ordering::Relaxed);
+        let mut shared = self.shared.borrow_mut();
+        if shared.last_request != Some(frame_number) {
+            shared.last_request = Some(frame_number);
+            shared.capture.request_new_frame();
+        }
         Ok(())
     }
     fn pause(&mut self, _app: &mut AppState) -> anyhow::Result<()> {
-        self.capture.pause();
+        self.set_capture_active(false);
         Ok(())
     }
     fn resume(&mut self, _app: &mut AppState) -> anyhow::Result<()> {
         self.just_resumed = true;
-        self.capture.resume();
+        self.set_capture_active(true);
         Ok(())
     }
     fn frame_meta(&mut self) -> Option<FrameMeta> {
         self.meta
     }
 
-    fn notify(&mut self, _app: &mut AppState, _event_data: OverlayEventData) -> anyhow::Result<()> {
+    fn notify(&mut self, _app: &mut AppState, event_data: OverlayEventData) -> anyhow::Result<()> {
+        if matches!(event_data, OverlayEventData::SettingsChanged) {
+            self.just_resumed = true;
+        }
         Ok(())
     }
 
@@ -303,7 +427,7 @@ impl OverlayBackend for ScreenBackend {
             && (!app.session.config.focus_follows_mouse_mode
                 || app.input_state.pointers[hit.pointer].now.move_mouse)
         {
-            let pos = self.mouse_transform.transform_point2(hit.uv);
+            let pos = self.mouse_transform.transform_point2(self.desktop_uv(hit.uv));
             app.hid_provider
                 .inner
                 .mouse_move(DVec2::new(pos.x as _, pos.y as _));
@@ -331,15 +455,13 @@ impl OverlayBackend for ScreenBackend {
             set_next_move(app.session.config.click_freeze_time_ms as _);
         }
 
-        app.hid_provider.inner.send_button(btn, pressed);
-
-        if !pressed {
-            return;
+        // Position first: the hover throttle may still leave the OS cursor on
+        // another panel when a trigger press arrives.
+        if pressed {
+            let pos = self.mouse_transform.transform_point2(self.desktop_uv(hit.uv));
+            app.hid_provider.inner.mouse_move(DVec2::new(pos.x as _, pos.y as _));
         }
-        let pos = self.mouse_transform.transform_point2(hit.uv);
-        app.hid_provider
-            .inner
-            .mouse_move(DVec2::new(pos.x as _, pos.y as _));
+        app.hid_provider.inner.send_button(btn, pressed);
     }
 
     fn on_scroll(&mut self, app: &mut AppState, _hit: &PointerHit, mut delta: WheelDelta) {
@@ -356,7 +478,7 @@ impl OverlayBackend for ScreenBackend {
     }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue> {
         match attrib {
-            BackendAttrib::Stereo => self.stereo.map(BackendAttribValue::Stereo),
+            BackendAttrib::Stereo if self.region == ScreenRegion::FULL => self.stereo.map(BackendAttribValue::Stereo),
             BackendAttrib::MouseTransform => Some(BackendAttribValue::MouseTransform(
                 self.mouse_transform_override,
             )),
@@ -371,10 +493,11 @@ impl OverlayBackend for ScreenBackend {
     }
     fn set_attrib(&mut self, _app: &mut AppState, value: BackendAttribValue) -> bool {
         match value {
-            BackendAttribValue::Stereo(new) => {
+            BackendAttribValue::Stereo(new) if self.region == ScreenRegion::FULL => {
                 if let Some(stereo) = self.stereo.as_mut() {
                     log::debug!("{}: stereo: {stereo:?} → {new:?}", self.name);
                     *stereo = new;
+                    self.just_resumed = true;
                     if let Some(pipeline) = self.pipeline.as_mut() {
                         pipeline.ensure_stereo(new);
                     }
@@ -391,6 +514,7 @@ impl OverlayBackend for ScreenBackend {
             }
             BackendAttribValue::StereoFullFrame(new) => {
                 self.stereo_full_frame = new;
+                self.just_resumed = true;
                 true
             }
             BackendAttribValue::StereoAdjustMouse(new) => {
@@ -415,5 +539,57 @@ const fn mouse_transform_to_transform(mouse_transform: MouseTransform) -> Transf
         MouseTransform::Flipped90 => Transform::Flipped90,
         MouseTransform::Flipped180 => Transform::Flipped180,
         MouseTransform::Flipped270 => Transform::Flipped270,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct MockCapture {
+        pauses: Rc<Cell<usize>>,
+        resumes: Rc<Cell<usize>>,
+    }
+
+    impl WlxCapture<WlxCaptureIn, WlxCaptureOut> for MockCapture {
+        fn init(
+            &mut self,
+            _: &[wlx_capture::DrmFormat],
+            _: WlxCaptureIn,
+            _: fn(&WlxCaptureIn, wlx_capture::frame::WlxFrame) -> Option<WlxCaptureOut>,
+        ) {}
+        fn is_ready(&self) -> bool { true }
+        fn supports_dmbuf(&self) -> bool { false }
+        fn receive(&mut self) -> Option<WlxCaptureOut> { None }
+        fn request_new_frame(&mut self) {}
+        fn pause(&mut self) { self.pauses.set(self.pauses.get() + 1); }
+        fn resume(&mut self) { self.resumes.set(self.resumes.get() + 1); }
+    }
+
+    #[test]
+    fn hiding_or_dropping_one_panel_keeps_sibling_capture_alive() {
+        let pauses = Rc::new(Cell::new(0));
+        let resumes = Rc::new(Cell::new(0));
+        let mut source = ScreenBackend::new_raw(
+            "DP-1".into(), XrBackend::OpenXR, CaptureType::PipeWire,
+            Box::new(MockCapture { pauses: pauses.clone(), resumes: resumes.clone() }),
+        );
+        let panel = source.screen_region(ScreenRegion { start: 1, end: 2, total: 2 }).unwrap();
+        let mut panel = (panel as Box<dyn std::any::Any>).downcast::<ScreenBackend>().ok().unwrap();
+        assert!(Rc::ptr_eq(&source.shared, &panel.shared));
+        source.set_capture_active(true);
+        panel.set_capture_active(true);
+        assert_eq!(resumes.get(), 1);
+        source.set_capture_active(false);
+        assert_eq!(pauses.get(), 0);
+        drop(source);
+        assert_eq!(pauses.get(), 0);
+        panel.set_capture_active(false);
+        assert_eq!(pauses.get(), 1);
+        panel.set_capture_active(true);
+        assert_eq!(resumes.get(), 2);
+        drop(panel);
+        assert_eq!(pauses.get(), 2);
     }
 }

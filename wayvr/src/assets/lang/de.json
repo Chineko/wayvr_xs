@@ -50,7 +50,15 @@
 		"POS_STATIC": "Statisch: Nicht Teil eines Sets, kein Recenter.",
 		"POSITIONING": "Positionierung",
 		"RESIZE_PRESS_AND_DRAG": "Größe ändern (drücken & ziehen)",
-		"RESIZE_CORNER": "Zum Vergrößern ziehen"
+		"RESIZE_CORNER": "Zum Vergrößern ziehen",
+		"SPLIT": {
+			"TITLE": "Split desktop",
+			"HELP": "One desktop capture - independent VR panels",
+			"FULL": "Full desktop",
+			"DUAL": "Two halves",
+			"THIRDS": "Three columns",
+			"CENTER": "Wide center"
+		}
 	},
 	"DEFINITIONS": {
 		"ANCHORED": "Verankert",
