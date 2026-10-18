@@ -24,7 +24,7 @@ jobs:
         shell: bash
     steps:
       - name: Prepare Arch tools
-        run: pacman -Syu --noconfirm --needed git sudo desktop-file-utils shellcheck vulkan-swrast
+        run: pacman -Syu --noconfirm --needed git desktop-file-utils shellcheck vulkan-swrast
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -35,11 +35,15 @@ jobs:
           bash -n packaging/arch/PKGBUILD
           shellcheck --shell=bash --exclude=SC2034,SC2154 packaging/arch/PKGBUILD
           desktop-file-validate packaging/arch/wayvr-xs.desktop
+      - name: Install package dependencies
+        id: dependencies
+        run: |
+          source packaging/arch/PKGBUILD
+          pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}"
+          printf 'fingerprint=%s\n' "$(pacman -Q | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Prepare unprivileged build
         run: |
           useradd --create-home builder
-          printf 'builder ALL=(root) NOPASSWD: /usr/bin/pacman\n' > /etc/sudoers.d/builder
-          chmod 440 /etc/sudoers.d/builder
           mkdir -p /build/source /build/package /build/cargo
           cp -a "$GITHUB_WORKSPACE/." /build/source/
           cp packaging/arch/PKGBUILD /build/package/
@@ -48,15 +52,15 @@ jobs:
           path: |
             /build/cargo
             /build/package/src/target
-          key: arch-xs-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'packaging/arch/PKGBUILD') }}
-          restore-keys: arch-xs-${{ runner.arch }}-
+          # Rebuild after Arch library/toolchain updates, including SONAME changes.
+          key: arch-xs-v2-${{ runner.arch }}-${{ steps.dependencies.outputs.fingerprint }}-${{ hashFiles('Cargo.lock', 'packaging/arch/PKGBUILD') }}
       - name: Build and test exact source commit
         run: |
           chown -R builder:builder /build
           runuser -u builder -- env \
             WAYVR_XS_SOURCE="git+file:///build/source#commit=$SOURCE_COMMIT" \
             CARGO_HOME=/build/cargo CARGO_BUILD_JOBS=2 \
-            bash -c 'cd /build/package && makepkg --syncdeps --noconfirm'
+            bash -c 'cd /build/package && makepkg --noconfirm'
       - name: Install and smoke-test package
         run: |
           pacman -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
