@@ -1,16 +1,6 @@
 name: Build Arch package
 
 on:
-  pull_request:
-    paths:
-      - '**/*.rs'
-      - '**/Cargo.toml'
-      - Cargo.lock
-      - 'wayvr/src/assets/**'
-      - 'dash-frontend/assets/**'
-      - 'packaging/arch/**'
-      - 'docs/**'
-      - '.github/workflows/build-arch.yml'
   push:
     branches: [feat/xs-ultrawide-panels]
   workflow_dispatch:
@@ -19,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: arch-package-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  group: arch-package-${{ github.repository }}-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +18,7 @@ jobs:
     container: archlinux:base-devel
     timeout-minutes: 60
     env:
-      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      SOURCE_COMMIT: ${{ github.sha }}
     defaults:
       run:
         shell: bash
