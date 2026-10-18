@@ -11,7 +11,7 @@ depends=(
   'libpipewire' 'libxkbcommon' 'openxr' 'pipewire' 'systemd-libs'
   'vulkan-icd-loader' 'vulkan-driver' 'wayland' 'xdg-desktop-portal'
 )
-makedepends=('clang' 'cmake' 'git' 'python' 'rust')
+makedepends=('clang' 'cmake' 'git' 'python' 'rust' 'shaderc')
 optdepends=(
   'xdg-desktop-portal-kde: screen sharing on KDE Plasma'
   'xwayland-satellite: run X11 applications inside WayVR'
@@ -36,15 +36,15 @@ prepare() {
 build() {
   cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
-  # shaderc 0.8 bundles CMake projects whose policy baseline predates CMake 4.
-  export CMAKE_POLICY_VERSION_MINIMUM=3.5
+  # Use Arch's maintained compiler instead of the crate's older bundled C++ code.
+  export SHADERC_LIB_DIR=/usr/lib
   cargo build --release --frozen -p wayvr --no-default-features --features wayland,openxr
 }
 
 check() {
   cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
-  export CMAKE_POLICY_VERSION_MINIMUM=3.5
+  export SHADERC_LIB_DIR=/usr/lib
   cargo test --release --frozen -p wayvr --no-default-features --features wayland,openxr
 }
 
