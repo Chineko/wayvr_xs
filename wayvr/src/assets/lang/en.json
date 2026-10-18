@@ -95,7 +95,7 @@
 		},
 		"SPLIT": {
 			"TITLE": "Split desktop",
-			"HELP": "One desktop capture - independent VR panels",
+			"HELP": "Split your desktop into movable VR panels",
 			"FULL": "Full desktop",
 			"DUAL": "Two halves",
 			"THIRDS": "Three columns",

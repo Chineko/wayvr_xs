@@ -387,6 +387,17 @@ where
                     if o.config.active_state.is_some() {
                         continue;
                     }
+                    // Split panels need their hidden physical source for layout
+                    // changes and restoring the full desktop.
+                    if o.config.backend.screen_source().as_ref() == Some(&o.config.name)
+                        && self.overlays.iter().any(|(other_id, other)| {
+                            other_id != oid
+                                && other.config.backend.screen_source().as_ref()
+                                    == Some(&o.config.name)
+                        })
+                    {
+                        continue;
+                    }
                     ids_to_remove.push(oid);
                 }
 

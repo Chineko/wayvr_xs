@@ -6,7 +6,7 @@ DEFINITIONS.WATCH,Watch,Name of the small utility window that hovers around the 
 DEFINITIONS.DASHBOARD,Dashboard,Name of the window that acts as the main menu / control panel of the application.
 DEFINITIONS.EDIT_MODE,Edit Mode,Name of the mode that allows the user to make various tweaks to the current workspace and its windows.
 EDIT_MODE.SPLIT.TITLE,Split desktop,Edit mode tab for ultrawide screen regions
-EDIT_MODE.SPLIT.HELP,One desktop capture - independent VR panels,Description of splitting a physical desktop
+EDIT_MODE.SPLIT.HELP,Split your desktop into movable VR panels,Description of splitting a physical desktop
 EDIT_MODE.SPLIT.FULL,Full desktop,Restore the physical monitor overlay
 EDIT_MODE.SPLIT.DUAL,Two halves,Split into two equal panels
 EDIT_MODE.SPLIT.THIRDS,Three columns,Split into three equal panels

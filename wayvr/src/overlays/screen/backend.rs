@@ -636,6 +636,40 @@ mod tests {
     }
 
     #[test]
+    fn region_input_respects_desktop_scaling_and_negative_monitor_origin() {
+        let mut source = ScreenBackend::new_raw(
+            "DP-1".into(),
+            XrBackend::OpenXR,
+            CaptureType::PipeWire,
+            Box::new(MockCapture {
+                pauses: Rc::new(Cell::new(0)),
+                resumes: Rc::new(Cell::new(0)),
+            }),
+        );
+        // 5120 physical pixels at 200% desktop scaling, to the left of
+        // the primary monitor and with a vertical desktop offset.
+        source.display_width = 5120;
+        source.logical_pos = vec2(-2560.0, 120.0);
+        source.logical_size = vec2(2560.0, 720.0);
+        source.apply_mouse_transform_with_override(Transform::Undefined);
+        let panel = source
+            .screen_region(ScreenRegion {
+                start: 1,
+                end: 2,
+                total: 2,
+            })
+            .unwrap();
+        let panel = (panel as Box<dyn std::any::Any>)
+            .downcast::<ScreenBackend>()
+            .ok()
+            .unwrap();
+        let desktop = panel
+            .mouse_transform
+            .transform_point2(panel.desktop_uv(vec2(0.5, 0.5)));
+        assert_eq!(desktop, vec2(-640.0, 480.0));
+    }
+
+    #[test]
     fn hiding_or_dropping_one_panel_keeps_sibling_capture_alive() {
         let pauses = Rc::new(Cell::new(0));
         let resumes = Rc::new(Cell::new(0));
