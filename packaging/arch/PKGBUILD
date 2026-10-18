@@ -22,31 +22,31 @@ source=("wayvr-xs::${WAYVR_XS_SOURCE:-git+https://github.com/Chineko/wayvr_xs.gi
 sha256sums=('SKIP')
 
 pkgver() {
-  cd "$srcdir/wayvr-xs"
+  cd "$srcdir/wayvr-xs" || return
   local version
   version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' wayvr/Cargo.toml | head -n1)
   printf '%s.r%s.g%s' "$version" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 prepare() {
-  cd "$srcdir/wayvr-xs"
+  cd "$srcdir/wayvr-xs" || return
   cargo fetch --locked --target x86_64-unknown-linux-gnu
 }
 
 build() {
-  cd "$srcdir/wayvr-xs"
+  cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo build --release --frozen -p wayvr --no-default-features --features wayland,openxr
 }
 
 check() {
-  cd "$srcdir/wayvr-xs"
+  cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo test --release --frozen -p wayvr --no-default-features --features wayland,openxr
 }
 
 package() {
-  cd "$srcdir/wayvr-xs"
+  cd "$srcdir/wayvr-xs" || return
   install -Dm755 "$srcdir/target/release/wayvr" "$pkgdir/usr/bin/wayvr-xs"
   install -Dm644 packaging/arch/wayvr-xs.desktop \
     "$pkgdir/usr/share/applications/wayvr-xs.desktop"
