@@ -5,7 +5,8 @@
 Independent movement, interactive app selection/switching, dropdown alignment,
 and layout persistence across closing/updating/reopening are headset-confirmed.
 Compact interactive-panel controls and the wrist PC performance dropdown are
-headset-confirmed. The layout manager needs its action-binding fix verified;
+headset-confirmed. The compact bar-dashboard redesign awaits headset checking.
+The layout manager needs its action-binding fix verified;
 app reconnection polish still awaits headset acceptance.
 
 ## Planned batches

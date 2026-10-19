@@ -27,8 +27,23 @@ use wlx_common::{
 };
 
 const NAME: &str = "XSPerformance";
+#[derive(Default)]
+struct Metrics {
+    cpu: Option<f64>,
+    ram_used: u64,
+    ram_total: u64,
+    cpu_temp: Option<f64>,
+    gpus: Vec<Gpu>,
+}
+struct Gpu {
+    name: String,
+    usage: Option<u64>,
+    used: Option<u64>,
+    total: Option<u64>,
+    temp: Option<f64>,
+}
 struct Sample {
-    text: String,
+    metrics: Metrics,
     taken: Instant,
 }
 struct Sampler {
@@ -49,22 +64,20 @@ impl Sampler {
                 while commands.recv().is_ok() {
                     system.refresh_cpu_usage();
                     system.refresh_memory();
-                    let cpu = if previous.is_some_and(|t| t.elapsed() < Duration::from_secs(3)) {
-                        format!("{:.0}%", system.global_cpu_usage())
-                    } else {
-                        "warming up".into()
-                    };
+                    let cpu = previous
+                        .filter(|t| t.elapsed() < Duration::from_secs(3))
+                        .map(|_| f64::from(system.global_cpu_usage()));
                     previous = Some(Instant::now());
-                    let text = format!(
-                        "CPU: {cpu}    RAM: {:.1} / {:.1} GiB\n{}\n{}",
-                        gib(system.used_memory()),
-                        gib(system.total_memory()),
-                        cpu_temperature(Path::new("/sys/class/hwmon")),
-                        gpu_readings(Path::new("/sys/class/drm"), nvidia_output().as_deref())
-                    );
+                    let metrics = Metrics {
+                        cpu,
+                        ram_used: system.used_memory(),
+                        ram_total: system.total_memory(),
+                        cpu_temp: cpu_temp(Path::new("/sys/class/hwmon")),
+                        gpus: gpu_metrics(Path::new("/sys/class/drm"), nvidia_output().as_deref()),
+                    };
                     if results
                         .send(Sample {
-                            text,
+                            metrics,
                             taken: Instant::now(),
                         })
                         .is_err()
@@ -104,18 +117,18 @@ fn directories(path: &Path) -> Vec<PathBuf> {
     paths.sort();
     paths
 }
-fn cpu_temperature(root: &Path) -> String {
+fn cpu_temp(root: &Path) -> Option<f64> {
     for hwmon in directories(root) {
         let name = std::fs::read_to_string(hwmon.join("name")).unwrap_or_default();
         if matches!(name.trim(), "coretemp" | "k10temp" | "zenpower")
             && let Some(t) = temperature(hwmon.join("temp1_input"))
         {
-            return format!("CPU temperature: {t:.0} °C");
+            return Some(t);
         }
     }
-    "CPU temperature: unavailable".into()
+    None
 }
-fn gpu_readings(root: &Path, nvidia: Option<&str>) -> String {
+fn gpu_metrics(root: &Path, nvidia: Option<&str>) -> Vec<Gpu> {
     let mut lines = Vec::new();
     for card in directories(root) {
         let name = card.file_name().unwrap_or_default().to_string_lossy();
@@ -145,9 +158,8 @@ fn gpu_readings(root: &Path, nvidia: Option<&str>) -> String {
             .and_then(|pci| nvidia.and_then(|text| nvidia_values(text, pci)));
         let usage = number(device.join("gpu_busy_percent"))
             .or_else(|| nv.as_ref().and_then(|v| v[0]))
-            .filter(|v| *v <= 100)
-            .map_or_else(|| "unavailable".into(), |v| format!("{v}%"));
-        let vram = match (
+            .filter(|v| *v <= 100);
+        let (used, total) = (
             number(device.join("mem_info_vram_used")).or_else(|| {
                 nv.as_ref()
                     .and_then(|v| v[1])
@@ -158,12 +170,7 @@ fn gpu_readings(root: &Path, nvidia: Option<&str>) -> String {
                     .and_then(|v| v[2])
                     .and_then(|v| v.checked_mul(1_048_576))
             }),
-        ) {
-            (Some(used), Some(total)) if total > 0 => {
-                format!("{:.1} / {:.1} GiB", gib(used), gib(total))
-            }
-            _ => "unavailable".into(),
-        };
+        );
         let temp = directories(&device.join("hwmon"))
             .iter()
             .find_map(|h| temperature(h.join("temp1_input")))
@@ -172,20 +179,40 @@ fn gpu_readings(root: &Path, nvidia: Option<&str>) -> String {
                     .and_then(|v| v[3])
                     .filter(|v| *v <= 150)
                     .map(|v| v as f64)
-            })
-            .map_or_else(|| "unavailable".into(), |t| format!("{t:.0} °C"));
-        lines.push(format!(
-            "{vendor} {name}: {usage}    Temperature: {temp}\nVRAM: {vram}"
-        ));
+            });
+        lines.push(Gpu {
+            name: format!("{vendor} {name}"),
+            usage,
+            used,
+            total,
+            temp,
+        });
         if lines.len() == 3 {
             break;
         }
     }
-    if lines.is_empty() {
-        "GPU / VRAM / temperature: unavailable".into()
-    } else {
-        lines.join("\n")
-    }
+    lines
+}
+#[cfg(test)]
+fn gpu_readings(root: &Path, nvidia: Option<&str>) -> String {
+    gpu_metrics(root, nvidia)
+        .iter()
+        .map(|g| {
+            format!(
+                "{}: {}    Temperature: {}\nVRAM: {}",
+                g.name,
+                g.usage
+                    .map_or_else(|| "unavailable".into(), |v| format!("{v}%")),
+                g.temp
+                    .map_or_else(|| "unavailable".into(), |v| format!("{v:.0} °C")),
+                match (g.used, g.total) {
+                    (Some(u), Some(t)) if t > 0 => format!("{:.1} / {:.1} GiB", gib(u), gib(t)),
+                    _ => "unavailable".into(),
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 // NVIDIA usually exposes these counters through its management tool rather
 // than DRM sysfs. Query only on this worker, with a strict deadline.
@@ -239,7 +266,38 @@ fn nvidia_values(text: &str, pci: &str) -> Option<[Option<u64>; 4]> {
 }
 struct State {
     sampler: Sampler,
-    text: String,
+    metrics: Option<Metrics>,
+    selected: Option<String>,
+    next_gpu: std::rc::Rc<std::cell::Cell<bool>>,
+}
+#[derive(Clone, Copy)]
+struct Gauge {
+    label: wgui::layout::WidgetID,
+    fill: wgui::layout::WidgetID,
+}
+fn ratio(value: Option<f64>, total: f64) -> f32 {
+    value
+        .filter(|v| v.is_finite())
+        .filter(|_| total.is_finite() && total > 0.)
+        .map_or(0., |v| (v / total).clamp(0., 1.) as f32)
+}
+fn paint(common: &mut wgui::event::CallbackDataCommon, gauge: Gauge, amount: f32, text: &str) {
+    if let Some(mut label) = common.state.widgets.get_as::<WidgetLabel>(gauge.label) {
+        label.set_text(common, wgui::i18n::Translation::from_raw_text(text));
+    }
+    common.alterables.set_style(
+        gauge.fill,
+        wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(amount)),
+    );
+}
+fn percent_text(value: Option<f64>) -> String {
+    value.map_or_else(|| "—".into(), |v| format!("{v:.0}%"))
+}
+fn memory_text(used: Option<u64>, total: Option<u64>) -> String {
+    match (used, total) {
+        (Some(u), Some(t)) if t > 0 => format!("{:.1} / {:.1} GiB", gib(u), gib(t)),
+        _ => "—".into(),
+    }
 }
 pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
     let mut panel = GuiPanel::new_from_template(
@@ -247,7 +305,9 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
         "gui/performance.xml",
         State {
             sampler: Sampler::new()?,
-            text: "Reading PC sensors…".into(),
+            metrics: None,
+            selected: None,
+            next_gpu: Default::default(),
         },
         NewGuiPanelParams {
             resize_to_parent: true,
@@ -255,21 +315,125 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
         },
     )?;
     panel.max_size = glam::vec2(1200., 700.);
-    let readings = panel.parser_state.get_widget_id("readings")?;
-    panel.layout.add_event_listener::<AppState, State>(panel.layout.tree_root_widget, EventListenerKind::InternalStateChange, Box::new(move |common, _, app, state| {
-        while let Ok(sample) = state.sampler.result.try_recv() {
-            state.sampler.pending = false;
-            state.text = if sample.taken.elapsed() < Duration::from_secs(3) { sample.text } else { "Refreshing PC sensors…".into() };
-        }
-        if !state.sampler.pending && state.sampler.last.elapsed() >= Duration::from_secs(1) {
-            if state.sampler.request.try_send(()).is_ok() { state.sampler.pending = true; } else { state.text = "PC telemetry unavailable".into(); }
-            state.sampler.last = Instant::now();
-        }
-        let frame = if app.delta_time.is_finite() && app.delta_time > 0. { format!("WayVR frame interval: {:.1} ms (~{:.0} Hz)", app.delta_time * 1000., app.delta_time.recip()) } else { "WayVR frame interval: unavailable".into() };
-        let text = format!("{}\n{frame}\nCompositor GPU timing: unavailable\nRefresh: 1 s • unsupported sensors show unavailable", state.text);
-        if let Some(mut label) = common.state.widgets.get_as::<WidgetLabel>(readings) { label.set_text(common, wgui::i18n::Translation::from_raw_text(&text)); }
-        Ok(EventResult::Pass)
-    }));
+    let mut gauges = Vec::new();
+    for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
+        gauges.push(Gauge {
+            label: panel.parser_state.get_widget_id(&format!("{id}_value"))?,
+            fill: panel.parser_state.get_widget_id(&format!("{id}_fill"))?,
+        });
+    }
+    let gpu_name = panel.parser_state.get_widget_id("gpu_name")?;
+    let status = panel.parser_state.get_widget_id("status")?;
+    let next = panel.state.next_gpu.clone();
+    panel
+        .parser_state
+        .fetch_component_as::<wgui::components::button::ComponentButton>("next_gpu")?
+        .on_click(std::rc::Rc::new(move |_, _| {
+            next.set(true);
+            Ok(())
+        }));
+    panel.layout.add_event_listener::<AppState, State>(
+        panel.layout.tree_root_widget,
+        EventListenerKind::InternalStateChange,
+        Box::new(move |common, _, app, state| {
+            while let Ok(sample) = state.sampler.result.try_recv() {
+                state.sampler.pending = false;
+                state.metrics =
+                    (sample.taken.elapsed() < Duration::from_secs(3)).then_some(sample.metrics);
+            }
+            if !state.sampler.pending && state.sampler.last.elapsed() >= Duration::from_secs(1) {
+                state.sampler.pending = state.sampler.request.try_send(()).is_ok();
+                state.sampler.last = Instant::now();
+            }
+            if state.sampler.pending && state.sampler.last.elapsed() > Duration::from_secs(3) {
+                state.metrics = None;
+            }
+            let frame = f64::from(app.delta_time);
+            let frame_valid = frame.is_finite() && frame > 0.;
+            let ms = frame_valid.then_some(frame * 1000.);
+            paint(
+                common,
+                gauges[0],
+                ratio(ms, 33.333),
+                &if frame_valid {
+                    format!("{:.0} FPS  ·  {:.1} ms", frame.recip(), frame * 1000.)
+                } else {
+                    "—".into()
+                },
+            );
+            let metrics = state.metrics.as_ref();
+            let gpu = metrics.and_then(|m| {
+                if m.gpus.is_empty() {
+                    return None;
+                }
+                let selected = state
+                    .selected
+                    .as_ref()
+                    .and_then(|name| m.gpus.iter().position(|g| &g.name == name));
+                let mut index = selected.unwrap_or_else(|| {
+                    m.gpus
+                        .iter()
+                        .enumerate()
+                        .max_by_key(|(_, g)| (g.name.starts_with("NVIDIA"), g.total.unwrap_or(0)))
+                        .map_or(0, |(i, _)| i)
+                });
+                if state.next_gpu.replace(false) {
+                    index = (index + 1) % m.gpus.len();
+                }
+                state.selected = Some(m.gpus[index].name.clone());
+                Some(&m.gpus[index])
+            });
+            let gpu_usage = gpu.and_then(|g| g.usage).map(|v| v as f64);
+            paint(
+                common,
+                gauges[1],
+                ratio(gpu_usage, 100.),
+                &percent_text(gpu_usage),
+            );
+            let (used, total) = (gpu.and_then(|g| g.used), gpu.and_then(|g| g.total));
+            paint(
+                common,
+                gauges[2],
+                ratio(used.map(|v| v as f64), total.unwrap_or(0) as f64),
+                &memory_text(used, total),
+            );
+            let gpu_temp = gpu.and_then(|g| g.temp);
+            paint(
+                common,
+                gauges[3],
+                ratio(gpu_temp, 100.),
+                &gpu_temp.map_or_else(|| "—".into(), |v| format!("{v:.0} °C")),
+            );
+            let cpu = metrics.and_then(|m| m.cpu);
+            paint(common, gauges[4], ratio(cpu, 100.), &percent_text(cpu));
+            let (used, total) = (metrics.map(|m| m.ram_used), metrics.map(|m| m.ram_total));
+            paint(
+                common,
+                gauges[5],
+                ratio(used.map(|v| v as f64), total.unwrap_or(0) as f64),
+                &memory_text(used, total),
+            );
+            let cpu_temp = metrics.and_then(|m| m.cpu_temp);
+            paint(
+                common,
+                gauges[6],
+                ratio(cpu_temp, 100.),
+                &cpu_temp.map_or_else(|| "—".into(), |v| format!("{v:.0} °C")),
+            );
+            for (id, text) in [
+                (gpu_name, gpu.map_or("GPU unavailable", |g| g.name.as_str())),
+                (
+                    status,
+                    "WayVR loop timing • frame bar 0–33.3 ms • — unavailable / warming up",
+                ),
+            ] {
+                if let Some(mut label) = common.state.widgets.get_as::<WidgetLabel>(id) {
+                    label.set_text(common, wgui::i18n::Translation::from_raw_text(text));
+                }
+            }
+            Ok(EventResult::Pass)
+        }),
+    );
     panel
         .timers
         .push(GuiTimer::new(Duration::from_millis(250), 0));
@@ -302,6 +466,15 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dashboard_bar_ranges_reject_invalid_values() {
+        assert_eq!(ratio(None, 100.), 0.);
+        assert_eq!(ratio(Some(f64::NAN), 100.), 0.);
+        assert_eq!(ratio(Some(50.), 0.), 0.);
+        assert_eq!(ratio(Some(-20.), 100.), 0.);
+        assert_eq!(ratio(Some(250.), 100.), 1.);
+        assert_eq!(ratio(Some(50.), 100.), 0.5);
+    }
     #[test]
     fn monitor_layout_and_close_button_match_rendered_bounds() {
         use std::rc::Rc;
@@ -336,6 +509,34 @@ mod tests {
             })
             .unwrap();
         assert_eq!(layout.content_size, glam::vec2(1200., 700.));
+        for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
+            let fill = parser.get_widget_id(&format!("{id}_fill")).unwrap();
+            parser.get_widget_id(&format!("{id}_value")).unwrap();
+            layout.alterables.set_style(
+                fill,
+                wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(0.5)),
+            );
+        }
+        layout
+            .update(&mut wgui::layout::LayoutUpdateParams {
+                size: glam::vec2(1200., 700.),
+                timestep_alpha: 1.,
+            })
+            .unwrap();
+        for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
+            let fill = parser.get_widget_id(&format!("{id}_fill")).unwrap();
+            let node = *layout.state.nodes.get(fill).unwrap();
+            let track = layout.state.tree.parent(node).unwrap();
+            let width = layout.state.get_node_size(node).x;
+            assert!(
+                (width - layout.state.get_node_size(track).x * 0.5).abs() < 1.,
+                "{id}"
+            );
+        }
+        parser
+            .fetch_component_as::<ComponentButton>("next_gpu")
+            .unwrap();
+
         let button = parser
             .fetch_component_as::<ComponentButton>("close")
             .unwrap();
@@ -409,7 +610,7 @@ mod tests {
         std::fs::write(device.join("gpu_busy_percent"), "200").unwrap();
         std::fs::write(device.join("hwmon/hwmon1/temp1_input"), "bad").unwrap();
         assert!(gpu_readings(&root, None).contains("card1: unavailable"));
-        assert!(cpu_temperature(&root).contains("unavailable"));
+        assert!(cpu_temp(&root).is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

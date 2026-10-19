@@ -293,3 +293,13 @@ Use **×** beside Controls to close an interactive panel and forget its saved
 definition in the current layout. **Hide** retains it for later use. Closing
 the overlay leaves the desktop application running. Saved named presets remain
 snapshots; loading an older preset can intentionally restore its saved panel.
+
+The wrist monitor now uses compact green cards with orange live bars: a wide
+WayVR FPS/frame-time row above GPU/VRAM/temperature and CPU/RAM/temperature cards.
+Use **GPU ▸** to cycle cards; the selected GPU is named above its readings.
+NVIDIA is initially preferred when present, otherwise the largest reported VRAM
+card. Memory bars show used/total capacity; temperature bars span 0–100 °C and
+the frame bar spans 0–33.3 ms. Values remain numeric beside each bar. Unavailable
+or warming-up readings show **—** with an empty track. Frame data is app-loop
+timing, not compositor GPU timing. Wrist footprint and hidden-panel sampling
+behavior are retained.
