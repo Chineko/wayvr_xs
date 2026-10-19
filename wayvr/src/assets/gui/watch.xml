@@ -159,6 +159,10 @@
             <sprite width="38" height="38" src_builtin="@/edit/mirror.svg" />
             <label text="+" size="20" />
           </Button>
+          <Button macro="button_style" _press="::NewInteractiveWindow" tooltip="BAR.ADD_INTERACTIVE_WINDOW" tooltip_side="top" skip="${not_kde}">
+            <sprite width="38" height="38" src_builtin="@/edit/normal.svg" />
+            <label text="+" size="20" />
+          </Button>
           <VerticalSeparator />
           <div id="sets_root" gap="4">
             <!-- Will populate tags at runtime -->

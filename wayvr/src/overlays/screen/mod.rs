@@ -18,6 +18,8 @@ use wlx_common::DesktopBackend;
 pub mod backend;
 pub mod capture;
 #[cfg(feature = "wayland")]
+pub mod kde;
+#[cfg(feature = "wayland")]
 pub mod mirror;
 #[cfg(feature = "pipewire")]
 pub mod pw;

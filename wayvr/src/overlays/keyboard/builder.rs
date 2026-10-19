@@ -70,6 +70,16 @@ pub(super) fn create_keyboard_panel(
         bool_to_rc_str(!app.feats.desktop_backend.is_wayland()),
     );
 
+    params.extra_vars.insert(
+        "not_kde".into(),
+        bool_to_rc_str(
+            !app.feats.desktop_backend.is_wayland()
+                || !std::env::var("XDG_CURRENT_DESKTOP")
+                    .unwrap_or_default()
+                    .split(':')
+                    .any(|name| name.eq_ignore_ascii_case("KDE")),
+        ),
+    );
     let mut panel = GuiPanel::new_from_template(app, "gui/keyboard.xml", state, params)?;
 
     let doc_params = new_doc_params(&mut panel);

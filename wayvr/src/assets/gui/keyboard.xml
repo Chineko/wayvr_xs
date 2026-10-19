@@ -191,6 +191,7 @@
     <context_menu >
       <cell translation="BAR.EDIT_MODE_TOGGLE" _press="::EditToggle" _press2="::ContextMenuClose" />
       <cell translation="BAR.HANDSFREE.TITLE" _press="::ContextMenuOpen menu_handsfree" />
+      <cell translation="BAR.ADD_INTERACTIVE_WINDOW" _press="::NewInteractiveWindow" _press2="::ContextMenuClose" skip="${not_kde}" />
       <cell translation="BAR.ADD_APP_WINDOW" _press="::NewAppWindow" _press2="::ContextMenuClose" skip="${not_wayland}" />
       <cell translation="BAR.ADD_MIRROR" _press="::NewMirror" skip="${not_wayland}" />
       <cell translation="BAR.ADD_PASSTHRU" _press="::NewPassthru" skip="${not_passthru}" />

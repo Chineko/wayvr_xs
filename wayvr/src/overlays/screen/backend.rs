@@ -46,6 +46,27 @@ fn set_next_move(millis_from_now: u64) {
     );
 }
 
+/// Shared desktop/app-window controller button mapping.
+pub(super) const fn pointer_button(mode: PointerMode, left_handed: bool) -> u16 {
+    match mode {
+        PointerMode::Middle => MOUSE_MIDDLE,
+        PointerMode::Right => {
+            if left_handed {
+                MOUSE_LEFT
+            } else {
+                MOUSE_RIGHT
+            }
+        }
+        _ => {
+            if left_handed {
+                MOUSE_RIGHT
+            } else {
+                MOUSE_LEFT
+            }
+        }
+    }
+}
+
 pub(super) enum CaptureType {
     PipeWire,
     ScreenCopy,
@@ -487,20 +508,7 @@ impl OverlayBackend for ScreenBackend {
         HoverResult::consume()
     }
     fn on_pointer(&mut self, app: &mut AppState, hit: &PointerHit, pressed: bool) {
-        let mut btn = match hit.mode {
-            PointerMode::Right => MOUSE_RIGHT,
-            PointerMode::Middle => MOUSE_MIDDLE,
-            _ => MOUSE_LEFT,
-        };
-
-        // Swap left and right buttons if left-handed mode is enabled
-        if app.session.config.left_handed_mouse {
-            btn = match btn {
-                MOUSE_LEFT => MOUSE_RIGHT,
-                MOUSE_RIGHT => MOUSE_LEFT,
-                other => other,
-            };
-        }
+        let btn = pointer_button(hit.mode, app.session.config.left_handed_mouse);
 
         if pressed {
             set_next_move(app.session.config.click_freeze_time_ms as _);

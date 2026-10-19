@@ -530,13 +530,14 @@ pub(super) fn setup_custom_button<S: 'static>(
                     Ok(EventResult::Consumed)
                 }),
                 #[cfg(feature = "wayland")]
-                "::NewMirror" | "::NewAppWindow" => {
+                "::NewMirror" | "::NewAppWindow" | "::NewInteractiveWindow" => {
                     let window_only = command == "::NewAppWindow";
+                    let interactive = command == "::NewInteractiveWindow";
                     Box::new(move |_common, data, app, _| {
                         if !test_button(data) || !test_duration(&button, app) {
                             return Ok(EventResult::Pass);
                         }
-                        let name = if window_only {
+                        let name = if window_only || interactive {
                             crate::overlays::screen::mirror::new_app_window_name()
                         } else {
                             crate::overlays::screen::mirror::new_mirror_name()
@@ -545,7 +546,9 @@ pub(super) fn setup_custom_button<S: 'static>(
                             OverlaySelector::Name(name.clone()),
                             SpawnPos::Spread,
                             Box::new(move |app| {
-                                let result = if window_only {
+                                let result = if interactive {
+                                    crate::overlays::screen::kde::new_interactive_window(name, app)
+                                } else if window_only {
                                     crate::overlays::screen::mirror::new_app_window(name, app)
                                 } else {
                                     crate::overlays::screen::mirror::new_mirror(name, app)

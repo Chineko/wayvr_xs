@@ -6147,6 +6147,7 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "wayland-protocols-misc",
+ "wayland-scanner",
  "wayvr-ipc",
  "wgui",
  "whisper-rs",

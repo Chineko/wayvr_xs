@@ -108,6 +108,46 @@ while edit mode is active. Capture behavior when minimized or closed needs targe
 KDE validation; a closed stream may retain its last image. Keep desktop split
 panels available if you need controller input.
 
+## Interact with an existing KDE app window (experimental)
+
+On KDE Wayland, open the watch's **mouse +** button or choose **Add interactive
+app (KDE, foreground)** in the keyboard menu. A native desktop crosshair appears:
+click the original Browser, Discord or other window to select it; Escape cancels.
+This is a separate option from the tested view-only portal mirrors.
+
+The selected KWin window ID is used for both capture and input. Click the new VR
+panel to bring the original app to the foreground and interact. Left/right/middle
+click modes, scrolling, and the existing virtual keyboard are reused. Click the
+app panel successfully before typing with the virtual keyboard. Existing quick
+panel controls and Independent panel movement apply to placement in VR.
+
+This first version uses the physical desktop pointer. It requires the original
+window to be visible and foreground; it cannot click a covered app in the
+background. Unrelated windows covering the point block input. Minimized windows
+must be restored on the desktop. Input pauses while the original window is being
+moved/resized or while the capture dimensions no longer match its current bounds.
+Menus/popups belonging to the app are included in coordinate mapping. A separate
+modal dialog may need its own interactive overlay.
+
+Only one controller owns a held mouse button at a time. Releasing the trigger,
+leaving the panel, hiding/removing it, losing focus or disconnecting the bridge
+releases held input. Drags are supported while the pointer remains on the panel;
+leaving it ends the drag. Keyboard input follows the desktop's actual focused app.
+Each new session requires selecting the app again.
+
+The bridge is a temporary KWin script plus KDE's private screencast protocol,
+not a permanent installed plugin. These implementation-detail APIs can change;
+other desktops should use the view-only portal option. Normal cleanup unloads
+the script and removes its runtime file. If you close the overlay while the
+native desktop selection crosshair is active, press Escape to dismiss the picker.
+
+Local verification covers the Rust input state, JavaScript geometry/focus guards,
+and native KWin capture/validated coordinate replies before and after moving and
+resizing a disposable window. Actual controller clicks, typing, popup alignment,
+focus transitions and WiVRn reconnect still need one headset session. Check those
+along with hiding or deleting a panel during a held trigger. The existing portal
+edit-wrapper fix and system-shaderc build configuration are preserved.
+
 ## Build for Arch Linux and WiVRn
 
 For a pacman-managed install, KDE launcher, and prebuilt CI packages, use the

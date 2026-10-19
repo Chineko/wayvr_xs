@@ -1088,6 +1088,14 @@ impl<T> OverlayWindowManager<T> {
             _ => return None,
         };
 
+        // Release any held input and capture resources before an overlay is retired.
+        if let Some(overlay) = self.overlays.get_mut(id) {
+            let _ = overlay
+                .config
+                .backend
+                .pause(app)
+                .log_err("Could not pause removed overlay");
+        }
         let ret_val = self.overlays.remove(id);
         let internal = ret_val.as_ref().is_some_and(|o| {
             matches!(

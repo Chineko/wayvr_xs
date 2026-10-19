@@ -50,14 +50,29 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
         watch_xml,
         state,
         NewGuiPanelParams {
-            extra_vars: HashMap::from([(
-                "not_window_capture".into(),
-                if window_capture_available {
-                    "0".into()
-                } else {
-                    "1".into()
-                },
-            )]),
+            extra_vars: HashMap::from([
+                (
+                    "not_window_capture".into(),
+                    if window_capture_available {
+                        "0".into()
+                    } else {
+                        "1".into()
+                    },
+                ),
+                (
+                    "not_kde".into(),
+                    if window_capture_available
+                        && std::env::var("XDG_CURRENT_DESKTOP")
+                            .unwrap_or_default()
+                            .split(':')
+                            .any(|name| name.eq_ignore_ascii_case("KDE"))
+                    {
+                        "0".into()
+                    } else {
+                        "1".into()
+                    },
+                ),
+            ]),
             ..Default::default()
         },
     )?;
