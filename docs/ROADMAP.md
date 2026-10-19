@@ -13,11 +13,13 @@ Compact interactive-panel controls are published in
    compact drawer for regular screen panels, reusing existing edit controls.
 2. Named layout presets: implemented with in-VR naming, save/replace/rename/delete,
    startup selection and explicit Load & restart. Await combined headset acceptance.
-3. App reconnection polish: clear disconnected states, replacement of closed
-   apps and handling several windows from the same application.
+3. App reconnection polish: implemented disconnected placeholders, replacement
+   lists, explicit saved-app retry and ambiguous-window labels. Await headset test.
 4. Placement tools: alignment, matching sizes, edge snapping, curved rows and
    undo for accidental moves.
-5. Wrist dropdown and PC performance monitor: a compact menu attached to the
+5. Wrist dropdown and PC performance monitor: initial PC dropdown implemented;
+   request-driven CPU/RAM/GPU/VRAM/temperature readings await headset testing.
+   Further work: a compact menu attached to the
    wrist for quick panel actions and layout switching, with an expandable PC
    performance view. Investigate CPU/GPU utilization, RAM/VRAM use, temperatures
    and VR frame timing where available. Show unavailable metrics clearly;

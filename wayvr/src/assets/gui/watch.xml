@@ -164,6 +164,7 @@
             <label text="+" size="20" />
           </Button>
           <Button macro="button_style" _press="::OverlayToggle XSLayouts" tooltip_str="Layout presets"><label text="Layouts" size="20" /></Button>
+          <Button macro="button_style" _press="::OverlayToggle XSPerformance" tooltip_str="PC performance"><label text="PC ▾" size="20" /></Button>
           <VerticalSeparator />
           <div id="sets_root" gap="4">
             <!-- Will populate tags at runtime -->

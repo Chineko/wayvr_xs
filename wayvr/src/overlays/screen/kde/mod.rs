@@ -58,6 +58,7 @@ const PAGE_SIZE: usize = 6;
 enum PickerCommand {
     Toggle,
     Refresh,
+    Reconnect,
     Quick,
     Adjust(&'static str),
 }
@@ -153,6 +154,7 @@ struct InteractiveBackend {
     last_move: Instant,
     paused: bool,
     failed: bool,
+    reconnect_notice: Option<String>,
 }
 
 pub fn new_interactive_window(
@@ -214,6 +216,7 @@ pub fn new_interactive_window(
     for (id, command) in [
         ("change_app", PickerCommand::Toggle),
         ("refresh", PickerCommand::Refresh),
+        ("reconnect", PickerCommand::Reconnect),
         ("quick_toggle", PickerCommand::Quick),
     ] {
         let state = picker.clone();
@@ -270,6 +273,7 @@ pub fn new_interactive_window(
         last_move: Instant::now(),
         paused: false,
         failed: false,
+        reconnect_notice: None,
     };
     if !app.session.config.app_panels.iter().any(|p| p.name == name) {
         app.session.config.app_panels.push(SavedAppPanel {
@@ -350,7 +354,11 @@ impl InteractiveBackend {
         }
     }
     fn apply_reply(&mut self, app: &mut AppState, reply: Reply) {
-        if !reply.alive || (!reply.active && self.input.held.is_some()) {
+        if !reply.alive {
+            self.fail(app, "The selected app window closed");
+            return;
+        }
+        if !reply.active && self.input.held.is_some() {
             self.release(app, None);
             return;
         }
@@ -441,10 +449,19 @@ impl InteractiveBackend {
             if let Some(index) = reconnect_index(&saved, &identities) {
                 state.selected = Some(windows[index].uuid.clone());
             } else {
-                state.message = Some("Choose an app to reconnect this saved panel.".into());
+                let matches = identities
+                    .iter()
+                    .filter(|w| !saved.app_id.is_empty() && w.app_id == saved.app_id)
+                    .count();
+                state.message = Some(if matches > 1 {
+                    "Several matching windows — choose one explicitly; the panel will not guess."
+                        .into()
+                } else {
+                    "Saved app is unavailable. Open it and use Reconnect saved app, or choose a replacement.".into()
+                });
             }
         } else {
-            state.message = None;
+            state.message.clone_from(&self.reconnect_notice);
         }
         state.windows = windows;
         state.dirty = true;
@@ -471,6 +488,7 @@ impl InteractiveBackend {
         }
         self.screen = Some(screen);
         self.failed = false;
+        self.reconnect_notice = None;
         self.expanded = false;
         self.worker.set_enabled(!self.paused);
         if let Some(choice) = self.next_app.take() {
@@ -498,7 +516,11 @@ impl InteractiveBackend {
             .screen
             .as_mut()
             .and_then(OverlayBackend::frame_meta)
-            .map(|m| m.extent);
+            .map(|m| m.extent)
+            .or_else(|| {
+                (self.current_app.is_some() && self.geometry.content[1] > 0)
+                    .then_some(self.geometry.content)
+            });
         let geometry = PanelGeometry::new(content, self.expanded || content.is_none(), self.quick);
         let changed = self.geometry != geometry;
         self.geometry = geometry;
@@ -533,33 +555,53 @@ impl InteractiveBackend {
         }
         let caption = self.current_app.as_ref().map_or_else(
             || "Change app ▾".to_owned(),
-            |a| format!("{} ▾", a.title.chars().take(64).collect::<String>()),
+            |a| {
+                format!(
+                    "{}{} ▾",
+                    if self.screen.is_none() {
+                        "Reconnect: "
+                    } else {
+                        ""
+                    },
+                    a.title.chars().take(64).collect::<String>()
+                )
+            },
         );
         self.set_label("current_app", &caption);
+        self.set_label(
+            "connection_state",
+            if self.screen.is_none() && self.current_app.is_some() {
+                "App disconnected — choose a replacement below"
+            } else {
+                ""
+            },
+        );
         self.loading.update_layout(app)?;
         Ok(changed)
     }
     fn fail(&mut self, app: &mut AppState, reason: &str) {
+        if self.failed {
+            return;
+        }
         log::warn!("{}: {reason}", self.name);
         self.release(app, None);
+        self.worker.set_enabled(false);
         self.failed = true;
         if let Some(screen) = self.screen.as_mut() {
             let _ = screen.pause(app);
         }
         self.screen = None;
-        if let Ok(mut status) = self
-            .loading
-            .parser_state
-            .fetch_widget_as::<WidgetLabel>(&self.loading.layout.state, "status")
-        {
-            status.set_text(
-                &mut CallbackDataCommon {
-                    state: &self.loading.layout.state,
-                    alterables: &mut self.loading.layout.alterables,
-                },
-                wgui::i18n::Translation::from_raw_text(reason),
-            );
-        }
+        self.expanded = true;
+        self.reconnect_notice = Some(format!(
+            "Disconnected: {reason}. Choose a replacement or reconnect the saved app."
+        ));
+        self.picker_worker = Some(Worker::start());
+        let mut state = self.loading.state.borrow_mut();
+        state.windows.clear();
+        state.selected = None;
+        state.page = 0;
+        state.message.clone_from(&self.reconnect_notice);
+        state.dirty = true;
     }
 }
 
@@ -587,9 +629,6 @@ impl OverlayBackend for InteractiveBackend {
                 }
                 Event::Failed(reason) => {
                     self.fail(app, &reason);
-                    self.expanded = true;
-                    self.loading.state.borrow_mut().message = Some(reason);
-                    self.loading.state.borrow_mut().dirty = true;
                 }
             }
         }
@@ -614,7 +653,10 @@ impl OverlayBackend for InteractiveBackend {
         }
         let command = self.loading.state.borrow_mut().command.take();
         if let Some(command) = command {
-            if matches!(command, PickerCommand::Quick) {
+            if matches!(command, PickerCommand::Reconnect) {
+                self.open_picker(app);
+                self.restore_app.clone_from(&self.current_app);
+            } else if matches!(command, PickerCommand::Quick) {
                 self.release(app, None);
                 self.quick = !self.quick;
             } else if let PickerCommand::Adjust(action) = command {
@@ -676,10 +718,23 @@ impl OverlayBackend for InteractiveBackend {
                         state.windows.get(state.page * PAGE_SIZE + i).map_or_else(
                             || "—".into(),
                             |w| {
+                                let duplicate = state
+                                    .windows
+                                    .iter()
+                                    .filter(|other| {
+                                        other.app_id == w.app_id && other.title == w.title
+                                    })
+                                    .count()
+                                    > 1;
                                 format!(
-                                    "[{}] {}",
+                                    "[{}] {}{}",
                                     w.output,
-                                    w.title.chars().take(64).collect::<String>()
+                                    w.title.chars().take(64).collect::<String>(),
+                                    if duplicate {
+                                        format!(" · {}", w.uuid.chars().take(8).collect::<String>())
+                                    } else {
+                                        String::new()
+                                    }
                                 )
                             },
                         ),
@@ -881,6 +936,7 @@ mod tests {
             "next".into(),
             "change_app".into(),
             "refresh".into(),
+            "reconnect".into(),
         ]) {
             parser.fetch_component_as::<ComponentButton>(&id).unwrap();
         }
@@ -950,7 +1006,7 @@ mod tests {
                 "{content:?}: {:?} vs {viewport:?}",
                 layout.content_size
             );
-            for id in ["previous", "refresh", "next", "quick_toggle"]
+            for id in ["previous", "refresh", "next", "reconnect", "quick_toggle"]
                 .into_iter()
                 .chain(if quick_open {
                     vec![

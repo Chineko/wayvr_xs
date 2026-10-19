@@ -13,3 +13,5 @@ pub mod wayvr;
 pub mod whisper;
 
 pub mod layout_presets;
+
+pub mod performance;

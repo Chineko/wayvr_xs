@@ -260,3 +260,31 @@ Combined headset check: test the quick controls, save two different arrangements
 with one hidden/pinned panel, load each, rename and replace one, select a startup
 preset and restart, then switch startup back to last session. Delete a spare
 preset and verify it disappears. Recheck app selection and pointer alignment.
+
+### App reconnection and wrist PC monitor
+
+Closing a selected app now keeps its panel size, releases held input and shows
+an explicit disconnected placeholder with a fresh replacement list. Use
+**Reconnect saved app** after reopening the app to retry its saved identity.
+A unique match reconnects; missing/ambiguous matches require an explicit choice.
+Identical app titles receive short session tags in the picker; those tags and
+window UUIDs are never stored. Refresh updates the list without opening apps.
+
+Use **PC ▾** on the wrist menu to expand a performance view below the watch;
+**Close ▴** folds it away. It follows the left wrist and shows CPU utilization,
+RAM, up to three GPUs with available utilization/VRAM/temperature, CPU temperature
+and WayVR's frame interval. Frame interval is the app loop, not compositor GPU
+timing. Unsupported sensors say unavailable. AMD/Intel counters use DRM/sysfs
+where exposed; NVIDIA can use optional `nvidia-smi`, queried on the worker with
+a 500 ms deadline. No additional monitoring dependency is required.
+
+The panel requests samples once per second only while rendered. The worker
+sleeps between requests; hiding/folding it or looking away stops new requests.
+An already requested sample may finish. Sensor reads and NVIDIA queries stay
+off the render thread. The initial CPU sample warms up before showing load.
+
+Headset check: close an app while holding a drag, confirm release and the
+placeholder, reopen it and reconnect, then test two windows with the same app
+identity/title and choose explicitly. Check Refresh and pointer alignment.
+Open/close the wrist PC view, check CPU/RAM and each GPU against a desktop tool,
+and verify it follows the wrist without overlapping the watch buttons.
