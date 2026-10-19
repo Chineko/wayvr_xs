@@ -42,6 +42,7 @@
 	"DISABLED": "Disabled",
 	"DONE": "Done",
 	"EDIT_MODE": {
+		"QUICK": {"TITLE": "Quick panel controls", "NARROWER": "Width −5%", "WIDER": "Width +5%", "NEARER": "Nearer 10 cm", "FARTHER": "Farther 10 cm", "RECENTER": "Recenter panel"},
 		"ADJUST_CURVATURE": "Adjust curvature",
 		"ALIGN_TO_HMD": "Align to HMD",
 		"ALPHA_BLEND_MODE": "Alpha blend mode",

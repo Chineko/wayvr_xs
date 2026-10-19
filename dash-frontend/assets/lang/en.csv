@@ -365,3 +365,5 @@ INSTALLED,"Installed","Installation flag (installed/not installed)"
 NOT_INSTALLED,"Not installed","Installation flag (installed/not installed)"
 YES,"Yes","Just a simple 'Yes' message, button in the dialog box"
 NO,"No","Just a simple 'No' message, button in the dialog box"
+APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT,"Independent panel movement",Independent workspace grab toggle
+APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT_HELP,"Move screens, panels and the keyboard individually when grabbing. Disable to move anchored overlays together again. Existing positions and positioning modes are preserved.",Independent workspace grab toggle

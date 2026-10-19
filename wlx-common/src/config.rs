@@ -597,4 +597,8 @@ pub struct GeneralConfig {
 
 	#[serde(default)]
 	pub middle_grabs_single: bool,
+
+	/// Grab individual overlays instead of moving their shared workspace anchor.
+	#[serde(default)]
+	pub independent_panel_movement: bool,
 }

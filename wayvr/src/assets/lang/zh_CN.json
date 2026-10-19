@@ -1,5 +1,6 @@
 {
 	"EDIT_MODE": {
+		"QUICK": {"TITLE": "Quick panel controls", "NARROWER": "Width −5%", "WIDER": "Width +5%", "NEARER": "Nearer 10 cm", "FARTHER": "Farther 10 cm", "RECENTER": "Recenter panel"},
 		"STEREO_3D_MODE": {
 			"SPLIT_BOTTOM_TOP": "下→上",
 			"SPLIT_LEFT_RIGHT": "左→右",

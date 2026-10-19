@@ -35,6 +35,50 @@ configuration so its panels can be restored when that source is available again.
 Stereo-packed desktop sources must be switched to **None** before splitting.
 Window mirrors retain their existing behavior.
 
+## Quick panel controls
+
+Edit mode opens on **Quick panel controls** (resize icon). For the pointed panel:
+
+- **Width −5% / +5%** changes its physical size while retaining aspect ratio,
+  capture region, position and orientation. Width is limited to 0.1–20 metres.
+- **Nearer / Farther** moves it 10 cm along the line from your headset, keeping
+  its size and orientation. Distance is limited to 0.25–20 metres.
+- **Recenter panel** brings just this panel directly in front of your current
+  headset pose, retaining its distance and size and matching your head orientation.
+- **Opacity** and **Curvature** use the existing sliders, now together here.
+- The existing **Disable grab** toolbar button locks placement against grabbing.
+  **Positioning** still offers Static, Anchored, Floating and head/hand following.
+  Quick adjustments preserve that mode and update its saved relative transform.
+- The fade icon retains additive blending and angle fade options.
+
+Switch back to the resize icon after using other tabs. Changes use the existing
+saved-state path; leave edit mode to save as usual. Adjustments affect only the
+selected panel, so siblings keep their positions.
+
+For one headset session, check the portal picker while editing, then all split
+presets and pointer seams. On one panel, change width, distance, opacity and
+curvature; recenter while looking sideways; verify placement locking and each
+positioning mode. Confirm siblings remain unchanged, then restart once and check
+restoration and WiVRn reconnect. These controls still need hardware validation.
+
+## Move screens and keyboard independently
+
+Open **Settings → Controls** and enable **Independent panel movement**.
+Normal grabs now move only the selected screen, split panel or keyboard, including
+items using Anchored positioning. The setting applies to all anchored overlays.
+It takes effect on your next grab and is saved through the normal settings path.
+No restart or conversion of existing positioning modes is required.
+
+Disable it to restore grouped workspace grabbing. Neither toggling direction
+repositions panels. Existing grab locks, head/hand following, edit-mode grabs,
+and the middle-click individual-grab modifier retain their behavior. Workspace
+sets and explicit workspace recenter actions still operate on the workspace.
+
+In the same headset session, enable the toggle and separately move two screens
+and the keyboard; verify their siblings stay still. Restart once to check the
+setting and positions persist. Disable it and verify anchored overlays move
+together again. Also test an item with Disable grab enabled.
+
 ## Build for Arch Linux and WiVRn
 
 For a pacman-managed install, KDE launcher, and prebuilt CI packages, use the
@@ -45,7 +89,7 @@ Install the native dependencies from the upstream
 From this repository's root:
 
 ```sh
-cargo build --release --locked -p wayvr --no-default-features --features wayland,openxr
+SHADERC_LIB_DIR=/usr/lib cargo build --release --locked -p wayvr --no-default-features --features wayland,openxr
 ./target/release/wayvr --openxr --show
 ```
 

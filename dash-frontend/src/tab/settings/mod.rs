@@ -345,6 +345,7 @@ pub(crate) enum SettingType {
 	NotificationsSoundEnabled,
 	OpaqueBackground,
 	MiddleGrabsSingle,
+	IndependentPanelMovement,
 	MouseAcceleration,
 	PointerLerpFactor,
 	MouseSpeed,
@@ -402,6 +403,7 @@ impl SettingType {
 			Self::NotificationsSoundEnabled => &mut config.notifications_sound_enabled,
 			Self::OpaqueBackground => &mut config.opaque_background,
 			Self::MiddleGrabsSingle => &mut config.middle_grabs_single,
+			Self::IndependentPanelMovement => &mut config.independent_panel_movement,
 			Self::MouseAcceleration => &mut config.wvr_mouse_acceleration,
 			Self::ScreenRenderDown => &mut config.screen_render_down,
 			Self::SetsOnWatch => &mut config.sets_on_watch,
@@ -553,6 +555,7 @@ impl SettingType {
 			Self::NotificationsSoundEnabled => Ok("APP_SETTINGS.NOTIFICATIONS_SOUND_ENABLED"),
 			Self::OpaqueBackground => Ok("APP_SETTINGS.OPAQUE_BACKGROUND"),
 			Self::MiddleGrabsSingle => Ok("APP_SETTINGS.MIDDLE_GRABS_SINGLE"),
+			Self::IndependentPanelMovement => Ok("APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT"),
 			Self::MouseSpeed => Ok("APP_SETTINGS.POINTER_SPEED"),
 			Self::MouseAcceleration => Ok("APP_SETTINGS.POINTER_ACCELERATION"),
 			Self::PointerLerpFactor => Ok("APP_SETTINGS.POINTER_LERP_FACTOR"),
@@ -603,6 +606,7 @@ impl SettingType {
 			Self::KeyboardMiddleClick => Some("APP_SETTINGS.KEYBOARD_MIDDLE_CLICK_HELP"),
 			Self::LeftHandedMouse => Some("APP_SETTINGS.LEFT_HANDED_MOUSE_HELP"),
 			Self::MiddleGrabsSingle => Some("APP_SETTINGS.MIDDLE_GRABS_SINGLE_HELP"),
+			Self::IndependentPanelMovement => Some("APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT_HELP"),
 			Self::MouseAcceleration => Some("APP_SETTINGS.POINTER_ACCELERATION_HELP"),
 			Self::ScreenRenderDown => Some("APP_SETTINGS.SCREEN_RENDER_DOWN_HELP"),
 			Self::SnapAngleDeg => Some("APP_SETTINGS.SNAP_ANGLE_DEG_HELP"),
@@ -799,5 +803,22 @@ impl<T> TabSettings<T> {
 			current_tab: None,
 			frontend_tasks: frontend.tasks.clone(),
 		})
+	}
+}
+
+#[cfg(test)]
+mod independent_movement_tests {
+	use super::SettingType;
+	use wlx_common::config::GeneralConfig;
+
+	#[test]
+	fn independent_toggle_defaults_off_and_round_trips() {
+		let mut config: GeneralConfig = serde_json::from_str("{}").unwrap();
+		assert!(!config.independent_panel_movement);
+		*SettingType::IndependentPanelMovement.mut_bool(&mut config) = true;
+		let saved = serde_json::to_string(&config).unwrap();
+		let restored: GeneralConfig = serde_json::from_str(&saved).unwrap();
+		assert!(restored.independent_panel_movement);
+		assert!(!restored.middle_grabs_single);
 	}
 }

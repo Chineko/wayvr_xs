@@ -864,22 +864,35 @@ struct StartGrabParams<'a> {
     grab_float: bool,
 }
 
+/// Decide at grab start so switching settings cannot change an in-flight grab.
+const fn should_grab_workspace(
+    positioning: Positioning,
+    independent: bool,
+    individual_grab: bool,
+    anchor_grabbed: bool,
+) -> bool {
+    matches!(positioning, Positioning::Anchored)
+        && !independent
+        && !individual_grab
+        && !anchor_grabbed
+}
+
 fn start_grab(par: StartGrabParams) {
     let (app, id, state) = (par.app, par.id, par.state);
 
     let pointer = &mut app.input_state.pointers[par.idx];
 
-    // Grab anchor if:
-    // - grabbed overlay is Anchored
-    // - not in editmode
-    // - not using grab_float
-    // - grabbing with one hand. (grabbing with the 2nd hand will grab the individual overlay instead)
-    let grab_anchor = !par.edit_mode
-        && !par.grab_float
-        && !app.anchor_grabbed
-        && matches!(state.positioning, Positioning::Anchored)
-        && !(app.session.config.middle_grabs_single
+    // Edit mode and the existing modifier still allow individual grabs when grouped.
+    let individual_grab = par.edit_mode
+        || par.grab_float
+        || (app.session.config.middle_grabs_single
             && pointer.interaction.mode == PointerMode::Middle);
+    let grab_anchor = should_grab_workspace(
+        state.positioning,
+        app.session.config.independent_panel_movement,
+        individual_grab,
+        app.anchor_grabbed,
+    );
 
     let relative_grab_transform = if grab_anchor {
         app.anchor
@@ -1134,4 +1147,64 @@ fn ray_test(
         local_pos,
         dist,
     })
+}
+
+#[cfg(test)]
+mod workspace_grab_tests {
+    use super::should_grab_workspace;
+    use wlx_common::windowing::Positioning;
+
+    #[test]
+    fn independent_grabs_never_move_the_workspace() {
+        for positioning in [
+            Positioning::Anchored,
+            Positioning::Static,
+            Positioning::Floating,
+            Positioning::FollowHead { lerp: 1.0 },
+            Positioning::FollowHand {
+                hand: wlx_common::common::LeftRight::Left,
+                lerp: 1.0,
+            },
+        ] {
+            for individual_grab in [false, true] {
+                for anchor_grabbed in [false, true] {
+                    assert!(!should_grab_workspace(
+                        positioning,
+                        true,
+                        individual_grab,
+                        anchor_grabbed
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn disabling_independent_movement_restores_existing_grab_rules() {
+        assert!(should_grab_workspace(
+            Positioning::Anchored,
+            false,
+            false,
+            false
+        ));
+        assert!(!should_grab_workspace(
+            Positioning::Anchored,
+            false,
+            true,
+            false
+        ));
+        assert!(!should_grab_workspace(
+            Positioning::Anchored,
+            false,
+            false,
+            true
+        ));
+        for positioning in [
+            Positioning::Static,
+            Positioning::Floating,
+            Positioning::FollowHead { lerp: 1.0 },
+        ] {
+            assert!(!should_grab_workspace(positioning, false, false, false));
+        }
+    }
 }

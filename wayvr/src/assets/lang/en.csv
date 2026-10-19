@@ -165,3 +165,9 @@ NOTIFICATION.CANNOT_CAPTURE_KBD_MOUSE,"Could not initialize keyboard/mouse captu
 Check that your user is in the 'input' group.",A system notification which shows up in case if we can't control the computer via keyboard or mouse. Leave `input` key as-is - it's a linux group name.
 NOTIFICATION.WE_ARE_GRABBING,"WayVR has your keyboard and mouse!
 Press Super+Z to release.",A system notification which shows up in case if WayVR starts capturing physical keyboard and mouse events. The user consciously chose this option - it's just a message for him how to exit the mode later. Emphasis on user discretion
+EDIT_MODE.QUICK.TITLE,Quick panel controls,Quick panel controls
+EDIT_MODE.QUICK.NARROWER,Width −5%,Quick panel controls
+EDIT_MODE.QUICK.WIDER,Width +5%,Quick panel controls
+EDIT_MODE.QUICK.NEARER,Nearer 10 cm,Quick panel controls
+EDIT_MODE.QUICK.FARTHER,Farther 10 cm,Quick panel controls
+EDIT_MODE.QUICK.RECENTER,Recenter panel,Quick panel controls

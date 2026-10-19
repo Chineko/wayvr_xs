@@ -37,6 +37,8 @@
 		"RES_TITLE": "Resolución"
 	},
 	"APP_SETTINGS": {
+		"INDEPENDENT_PANEL_MOVEMENT": "Independent panel movement",
+		"INDEPENDENT_PANEL_MOVEMENT_HELP": "Move screens, panels and the keyboard individually when grabbing. Disable to move anchored overlays together again. Existing positions and positioning modes are preserved.",
 		"ALLOW_SLIDING": "Interacción del stick al agarrar",
 		"ANIMATION_SPEED": "Velocidad de animación de la interfaz",
 		"AUTOSTART_APPS": "Aplicaciones al iniciar",
