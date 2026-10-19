@@ -164,7 +164,12 @@ pub fn new_interactive_window(
         app,
         "gui/kde-window-picker.xml",
         picker.clone(),
-        NewGuiPanelParams::default(),
+        NewGuiPanelParams {
+            // The capture fixes the render viewport. Shrink-wrapping the GUI
+            // makes GuiPanel map pointer UVs against a different width.
+            resize_to_parent: true,
+            ..Default::default()
+        },
     )?;
     for index in 0..PAGE_SIZE {
         let state = picker.clone();
@@ -800,7 +805,10 @@ mod tests {
                 path: AssetPathRef::BuiltIn("gui/kde-window-picker.xml"),
                 extra: Default::default(),
             },
-            Default::default(),
+            wgui::layout::LayoutParams {
+                resize_to_parent: true,
+                ..Default::default()
+            },
         )
         .unwrap();
         for id in (0..super::PAGE_SIZE).map(|i| format!("choice_{i}")).chain([
@@ -840,6 +848,78 @@ mod tests {
             })
             .unwrap();
         assert!((layout.content_size.y - 792.).abs() < 0.1);
+        for content in [[1920, 1080], [1001, 777], [400, 1000], [2560, 1440]] {
+            let g = super::PanelGeometry::new(Some(content), true);
+            let scale = g.full[0] as f32 / 1280.;
+            let viewport = glam::vec2(g.full[0] as f32, g.full[1] as f32) / scale;
+            layout.alterables.set_style(
+                space,
+                StyleSetRequest::Height(length(content[1] as f32 / scale)),
+            );
+            layout
+                .alterables
+                .set_style(picker, StyleSetRequest::Display(Display::Flex));
+            layout
+                .update(&mut wgui::layout::LayoutUpdateParams {
+                    size: viewport,
+                    timestep_alpha: 1.,
+                })
+                .unwrap();
+            assert!(
+                layout.content_size.abs_diff_eq(viewport, 1.),
+                "{content:?}: {:?} vs {viewport:?}",
+                layout.content_size
+            );
+            for id in ["previous", "refresh", "next"] {
+                let clicked = std::rc::Rc::new(std::cell::Cell::new(false));
+                let result = clicked.clone();
+                parser
+                    .fetch_component_as::<ComponentButton>(id)
+                    .unwrap()
+                    .on_click(std::rc::Rc::new(move |_, _| {
+                        result.set(true);
+                        Ok(())
+                    }));
+                use wgui::components::ComponentTrait;
+                let widget = parser
+                    .fetch_component_as::<ComponentButton>(id)
+                    .unwrap()
+                    .base()
+                    .get_id();
+                let node = *layout.state.nodes.get(widget).unwrap();
+                let mut pos = layout.state.get_node_size(node) * 0.5;
+                let mut ancestor = Some(node);
+                while let Some(node) = ancestor {
+                    let l = layout.state.tree.layout(node).unwrap();
+                    pos += glam::vec2(l.location.x, l.location.y);
+                    ancestor = layout.state.tree.parent(node);
+                }
+                // Rendered pixels -> normalized overlay hit -> GuiPanel event.
+                let uv = pos * scale / glam::vec2(g.full[0] as f32, g.full[1] as f32);
+                let event = wgui::event::MouseButtonEvent {
+                    pos: uv * layout.content_size,
+                    index: wgui::event::MouseButtonIndex::Left,
+                    device: wgui::event::DeviceBitmask::from_index(0),
+                };
+                layout
+                    .push_event(
+                        &wgui::event::Event::MouseMotion(wgui::event::MouseMotionEvent {
+                            pos: event.pos,
+                            device: event.device,
+                        }),
+                        &mut (),
+                        &mut (),
+                    )
+                    .unwrap();
+                layout
+                    .push_event(&wgui::event::Event::MouseDown(event), &mut (), &mut ())
+                    .unwrap();
+                layout
+                    .push_event(&wgui::event::Event::MouseUp(event), &mut (), &mut ())
+                    .unwrap();
+                assert!(clicked.get(), "{content:?}: rendered center missed {id}");
+            }
+        }
     }
 
     #[test]
