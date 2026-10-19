@@ -12,8 +12,7 @@ use std::{
 
 use anyhow::{Context, bail};
 use dbus::{
-    Message, MessageType,
-    arg::PropMap,
+    Message,
     blocking::Connection as Bus,
     channel::{MatchingReceiver, Sender},
     message::MatchRule,
@@ -69,7 +68,15 @@ pub struct Reply {
     pub y: f64,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct WindowChoice {
+    pub uuid: String,
+    pub title: String,
+    pub output: String,
+}
+
 pub enum Event {
+    Choices(Vec<WindowChoice>),
     Ready(u32),
     Reply(Reply),
     Failed(String),
@@ -77,6 +84,7 @@ pub enum Event {
 
 pub struct Worker {
     pub requests: mpsc::SyncSender<Request>,
+    pub selection: mpsc::Sender<String>,
     pub events: mpsc::Receiver<Event>,
     stop: Arc<AtomicBool>,
     enabled: Arc<AtomicBool>,
@@ -89,16 +97,8 @@ impl Worker {
     }
 
     pub fn start() -> Self {
-        Self::start_inner(None)
-    }
-
-    #[cfg(test)]
-    fn start_for_window(uuid: String) -> Self {
-        Self::start_inner(Some(uuid))
-    }
-
-    fn start_inner(uuid: Option<String>) -> Self {
         let (requests, rx) = mpsc::sync_channel(16);
+        let (selection, selected) = mpsc::channel();
         let (tx, events) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
         let enabled = Arc::new(AtomicBool::new(true));
@@ -106,13 +106,14 @@ impl Worker {
         let thread_stop = stop.clone();
         let (finished_tx, finished) = mpsc::channel();
         let join = std::thread::spawn(move || {
-            if let Err(error) = run(&rx, &tx, &thread_stop, &thread_enabled, uuid) {
+            if let Err(error) = run(&rx, &tx, &thread_stop, &thread_enabled, &selected) {
                 let _ = tx.send(Event::Failed(format!("{error:#}")));
             }
             let _ = finished_tx.send(());
         });
         Self {
             requests,
+            selection,
             events,
             stop,
             enabled,
@@ -195,65 +196,102 @@ impl Drop for ScriptGuard {
     }
 }
 
-fn select_window(bus: &Bus, stop: &AtomicBool) -> anyhow::Result<String> {
-    // The native desktop crosshair identifies the exact window; Escape cancels.
-    let msg = Message::new_method_call("org.kde.KWin", "/KWin", "org.kde.KWin", "queryWindowInfo")
-        .unwrap();
-    let serial = bus
-        .send(msg)
-        .map_err(|()| anyhow::anyhow!("Could not contact KWin"))?;
-    let selected = Arc::new(Mutex::new(None));
-    let mut rules = Vec::new();
-    for message_type in [MessageType::MethodReturn, MessageType::Error] {
-        let selected = selected.clone();
-        let mut rule = MatchRule::new();
-        rule.msg_type = Some(message_type);
-        rules.push(bus.start_receive(
-            rule,
-            Box::new(move |message, _| {
-                if message.get_reply_serial() != Some(serial) {
-                    return true;
-                }
-                let result = if message.msg_type() == MessageType::Error {
-                    Err("Window selection cancelled or unavailable".to_owned())
-                } else {
-                    message
-                        .read1::<PropMap>()
-                        .ok()
-                        .and_then(|properties| {
-                            properties
-                                .get("uuid")
-                                .and_then(|v| v.0.as_str())
-                                .map(str::to_owned)
-                        })
-                        .ok_or_else(|| "KWin did not return a window ID".to_owned())
-                };
-                *selected.lock().unwrap() = Some(result);
-                true
-            }),
-        ));
-    }
-    let started = Instant::now();
-    let result = loop {
-        if stop.load(Ordering::Relaxed) {
-            break Err(anyhow::anyhow!(
-                "Window selection stopped; press Escape to close the desktop picker"
-            ));
-        }
-        if started.elapsed() > Duration::from_secs(120) {
-            break Err(anyhow::anyhow!(
-                "Window selection timed out; press Escape to close the desktop picker"
-            ));
-        }
-        bus.process(Duration::from_millis(10))?;
-        let selection = { selected.lock().unwrap().take() };
-        if let Some(result) = selection {
-            break result.map_err(anyhow::Error::msg);
-        }
+fn select_window(
+    bus: &Bus,
+    stop: &AtomicBool,
+    tx: &mpsc::Sender<Event>,
+    selected: &mpsc::Receiver<String>,
+) -> anyhow::Result<String> {
+    let plugin = format!("wayvr-xs-{}", uuid::Uuid::new_v4());
+    let directories = xdg::BaseDirectories::with_prefix("wayvr");
+    let runtime = directories.get_runtime_directory()?;
+    let guard = ScriptGuard {
+        bus: Bus::new_session()?,
+        path: runtime.join(format!("{plugin}.js")),
+        plugin,
     };
-    for rule in rules {
-        bus.stop_receive(rule);
-    }
+    let script = include_str!("picker.js").replace(
+        "__BUS__",
+        &serde_json::to_string(&bus.unique_name().to_string())?,
+    );
+    fs::write(&guard.path, script)?;
+    let (owner,): (String,) = bus
+        .with_proxy(
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            Duration::from_secs(1),
+        )
+        .method_call("org.freedesktop.DBus", "GetNameOwner", ("org.kde.KWin",))?;
+    let choices = Arc::new(Mutex::new(None::<Vec<WindowChoice>>));
+    let callback_choices = choices.clone();
+    let mut rule = MatchRule::new_method_call();
+    rule.path = Some("/org/wayvr/XS".into());
+    rule.interface = Some("org.wayvr.XS.WindowInput".into());
+    rule.member = Some("Choices".into());
+    let token = bus.start_receive(
+        rule,
+        Box::new(move |message, connection| {
+            if message
+                .sender()
+                .is_none_or(|sender| sender.as_ref() != owner)
+            {
+                return true;
+            }
+            if let Ok(json) = message.read1::<String>() {
+                *callback_choices.lock().unwrap() = serde_json::from_str(&json).ok();
+            }
+            let _ = connection.send(message.method_return());
+            true
+        }),
+    );
+    let result = (|| {
+        let (id,): (i32,) = bus
+            .with_proxy("org.kde.KWin", "/Scripting", Duration::from_secs(2))
+            .method_call(
+                "org.kde.kwin.Scripting",
+                "loadScript",
+                (guard.path.to_string_lossy().as_ref(), &guard.plugin),
+            )?;
+        if id < 0 {
+            bail!("KWin could not load the window picker");
+        }
+        let run = Message::new_method_call(
+            "org.kde.KWin",
+            format!("/Scripting/Script{id}"),
+            "org.kde.kwin.Script",
+            "run",
+        )
+        .unwrap();
+        bus.send(run)
+            .map_err(|()| anyhow::anyhow!("Could not run window picker"))?;
+        let started = Instant::now();
+        let mut listed = None;
+        while !stop.load(Ordering::Relaxed) {
+            bus.process(Duration::from_millis(10))?;
+            let snapshot = choices.lock().unwrap().take();
+            if let Some(mut windows) = snapshot {
+                windows.sort_by(|a, b| {
+                    a.output
+                        .cmp(&b.output)
+                        .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+                });
+                let _ = tx.send(Event::Choices(windows.clone()));
+                listed = Some(windows);
+            }
+            if let Ok(uuid) = selected.try_recv()
+                && listed
+                    .as_ref()
+                    .is_some_and(|windows| windows.iter().any(|w| w.uuid == uuid))
+            {
+                return Ok(uuid);
+            }
+            if listed.is_none() && started.elapsed() > Duration::from_secs(5) {
+                bail!("KWin did not return the window list");
+            }
+        }
+        bail!("Window selection stopped")
+    })();
+    bus.stop_receive(token);
     result
 }
 
@@ -262,13 +300,10 @@ fn run(
     tx: &mpsc::Sender<Event>,
     stop: &AtomicBool,
     enabled: &AtomicBool,
-    selected_uuid: Option<String>,
+    selected: &mpsc::Receiver<String>,
 ) -> anyhow::Result<()> {
     let bus = Bus::new_session()?;
-    let uuid = match selected_uuid {
-        Some(uuid) => uuid,
-        None => select_window(&bus, stop)?,
-    };
+    let uuid = select_window(&bus, stop, tx, selected)?;
     uuid::Uuid::parse_str(uuid.trim_matches(['{', '}'])).context("Invalid KWin window ID")?;
     let wl = Connection::connect_to_env()?;
     let (globals, mut queue) = registry_queue_init::<WaylandState>(&wl)?;
@@ -436,7 +471,8 @@ mod tests {
         let uuid = std::env::var("WAYVR_XS_TEST_WINDOW_UUID").unwrap();
         let extent: [u32; 2] =
             serde_json::from_str(&std::env::var("WAYVR_XS_TEST_WINDOW_EXTENT").unwrap()).unwrap();
-        let worker = Worker::start_for_window(uuid);
+        let worker = Worker::start();
+        let mut listed = false;
         let start = Instant::now();
         let mut ready = false;
         let mut valid = false;
@@ -463,6 +499,14 @@ mod tests {
             });
             if let Ok(event) = worker.events.recv_timeout(Duration::from_millis(100)) {
                 match event {
+                    Event::Choices(windows) => {
+                        assert!(
+                            windows.iter().any(|w| w.uuid == uuid),
+                            "Disposable window missing from all-output picker"
+                        );
+                        worker.selection.send(uuid.clone()).unwrap();
+                        listed = true;
+                    }
                     Event::Ready(node) => {
                         assert!(node > 0);
                         ready = true;
@@ -490,6 +534,7 @@ mod tests {
                 break;
             }
         }
+        assert!(listed, "KWin did not enumerate windows");
         assert!(ready, "KWin did not create the capture stream");
         assert!(rejected_stale && rejected_outside);
         assert!(

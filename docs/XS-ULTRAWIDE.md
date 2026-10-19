@@ -111,8 +111,9 @@ panels available if you need controller input.
 ## Interact with an existing KDE app window (experimental)
 
 On KDE Wayland, open the watch's **mouse +** button or choose **Add interactive
-app (KDE, foreground)** in the keyboard menu. A native desktop crosshair appears:
-click the original Browser, Discord or other window to select it; Escape cancels.
+app (KDE, foreground)** in the keyboard menu. Choose Browser, Discord or another app from the list
+inside VR. The list includes all monitors and shows each window’s monitor name;
+use Previous/Next to browse additional pages. Open new apps before adding the panel.
 This is a separate option from the tested view-only portal mirrors.
 
 The selected KWin window ID is used for both capture and input. Click the new VR
@@ -138,8 +139,7 @@ Each new session requires selecting the app again.
 The bridge is a temporary KWin script plus KDE's private screencast protocol,
 not a permanent installed plugin. These implementation-detail APIs can change;
 other desktops should use the view-only portal option. Normal cleanup unloads
-the script and removes its runtime file. If you close the overlay while the
-native desktop selection crosshair is active, press Escape to dismiss the picker.
+the script and removes its runtime file. Closing the panel also cancels selection.
 
 Local verification covers the Rust input state, JavaScript geometry/focus guards,
 and native KWin capture/validated coordinate replies before and after moving and

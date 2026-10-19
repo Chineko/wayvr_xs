@@ -174,4 +174,4 @@ EDIT_MODE.QUICK.RECENTER,Recenter panel,Quick panel controls
 BAR.ADD_APP_WINDOW,"Add app window (view-only)",Window-only portal capture control
 BAR.APP_WINDOW_HELP,"Choose a Browser, Discord or another app window in the desktop picker. Window mirrors are view-only.",Window-only portal capture control
 BAR.ADD_INTERACTIVE_WINDOW,"Add interactive app (KDE, foreground)",KDE interactive window control
-BAR.KDE_WINDOW_HELP,"Select the app on your desktop with the crosshair. Escape cancels. Clicking this overlay brings the app forward on your desktop.",KDE interactive window control
+BAR.KDE_WINDOW_HELP,"Choose an app from any monitor in the VR window list. Clicking its overlay brings the app forward on your desktop.",KDE interactive window control

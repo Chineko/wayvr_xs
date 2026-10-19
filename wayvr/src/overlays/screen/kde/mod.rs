@@ -18,7 +18,9 @@ use crate::{
 };
 use glam::{Affine2, Affine3A, DVec2, Quat, Vec3, vec3};
 use std::{
+    cell::RefCell,
     collections::HashMap,
+    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -28,7 +30,16 @@ use wlx_common::{
     overlays::{BackendAttrib, BackendAttribValue},
     windowing::OverlayWindowState,
 };
-use worker::{Event, Reply, Request, Worker};
+use worker::{Event, Reply, Request, WindowChoice, Worker};
+
+#[derive(Default)]
+struct PickerState {
+    windows: Vec<WindowChoice>,
+    page: usize,
+    selected: Option<String>,
+    dirty: bool,
+}
+const PAGE_SIZE: usize = 6;
 
 #[derive(Clone, Copy)]
 enum Action {
@@ -74,7 +85,7 @@ impl InputState {
 
 struct InteractiveBackend {
     worker: Worker,
-    loading: GuiPanel<()>,
+    loading: GuiPanel<Rc<RefCell<PickerState>>>,
     screen: Option<ScreenBackend>,
     name: Arc<str>,
     pending: HashMap<u64, Pending>,
@@ -89,23 +100,46 @@ pub fn new_interactive_window(
     name: Arc<str>,
     app: &mut AppState,
 ) -> anyhow::Result<OverlayWindowConfig> {
-    let description = app
-        .wgui_globals
-        .i18n()
-        .translate("BAR.KDE_WINDOW_HELP")
-        .to_string();
+    let picker = Rc::new(RefCell::new(PickerState::default()));
     let mut loading = GuiPanel::new_from_template(
         app,
-        "gui/screencast.xml",
-        (),
-        NewGuiPanelParams {
-            extra_vars: HashMap::from([
-                ("name".into(), name.as_ref().into()),
-                ("description".into(), description.into()),
-            ]),
-            ..Default::default()
-        },
+        "gui/kde-window-picker.xml",
+        picker.clone(),
+        NewGuiPanelParams::default(),
     )?;
+    for index in 0..PAGE_SIZE {
+        let state = picker.clone();
+        loading
+            .parser_state
+            .fetch_component_as::<wgui::components::button::ComponentButton>(&format!(
+                "choice_{index}"
+            ))?
+            .on_click(Rc::new(move |_, _| {
+                let mut state = state.borrow_mut();
+                state.selected = state
+                    .windows
+                    .get(state.page * PAGE_SIZE + index)
+                    .map(|w| w.uuid.clone());
+                Ok(())
+            }));
+    }
+    for (id, next) in [("previous", false), ("next", true)] {
+        let state = picker.clone();
+        loading
+            .parser_state
+            .fetch_component_as::<wgui::components::button::ComponentButton>(id)?
+            .on_click(Rc::new(move |_, _| {
+                let mut state = state.borrow_mut();
+                let last = state.windows.len().saturating_sub(1) / PAGE_SIZE;
+                state.page = if next {
+                    (state.page + 1).min(last)
+                } else {
+                    state.page.saturating_sub(1)
+                };
+                state.dirty = true;
+                Ok(())
+            }));
+    }
     loading.update_layout(app)?;
     let backend = InteractiveBackend {
         worker: Worker::start(),
@@ -282,6 +316,11 @@ impl OverlayBackend for InteractiveBackend {
                 }
             };
             match event {
+                Event::Choices(windows) => {
+                    let mut state = self.loading.state.borrow_mut();
+                    state.windows = windows;
+                    state.dirty = true;
+                }
                 Event::Ready(node) => {
                     let capture =
                         new_wlx_capture!(app, PipewireCapture::new(self.name.clone(), node));
@@ -300,6 +339,65 @@ impl OverlayBackend for InteractiveBackend {
                 }
                 Event::Reply(reply) => self.apply_reply(app, reply),
                 Event::Failed(reason) => self.fail(app, &reason),
+            }
+        }
+        if self.screen.is_none() && !self.failed {
+            let (selection, labels) = {
+                let mut state = self.loading.state.borrow_mut();
+                let selection = state.selected.take();
+                let labels = if state.dirty {
+                    state.dirty = false;
+                    let mut labels = vec![(
+                        "status".to_string(),
+                        if state.windows.is_empty() {
+                            "No app windows found. Open an app, then add a new panel.".to_string()
+                        } else {
+                            format!(
+                                "Choose an app — page {} / {}",
+                                state.page + 1,
+                                state.windows.len().div_ceil(PAGE_SIZE)
+                            )
+                        },
+                    )];
+                    for i in 0..PAGE_SIZE {
+                        let text = state.windows.get(state.page * PAGE_SIZE + i).map_or_else(
+                            || "—".to_string(),
+                            |w| {
+                                format!(
+                                    "[{}] {}",
+                                    w.output,
+                                    w.title.chars().take(64).collect::<String>()
+                                )
+                            },
+                        );
+                        labels.push((format!("title_{i}"), text));
+                    }
+                    Some(labels)
+                } else {
+                    None
+                };
+                (selection, labels)
+            };
+            if let Some(uuid) = selection {
+                let _ = self.worker.selection.send(uuid);
+            }
+            if let Some(labels) = labels {
+                for (id, text) in labels {
+                    if let Ok(mut label) = self
+                        .loading
+                        .parser_state
+                        .fetch_widget_as::<WidgetLabel>(&self.loading.layout.state, &id)
+                    {
+                        label.set_text(
+                            &mut CallbackDataCommon {
+                                state: &self.loading.layout.state,
+                                alterables: &mut self.loading.layout.alterables,
+                            },
+                            wgui::i18n::Translation::from_raw_text(&text),
+                        );
+                    }
+                }
+                self.loading.update_layout(app)?;
             }
         }
         self.pending
@@ -340,6 +438,9 @@ impl OverlayBackend for InteractiveBackend {
         self.loading.resume(app)
     }
     fn on_hover(&mut self, app: &mut AppState, hit: &PointerHit) -> HoverResult {
+        if self.screen.is_none() {
+            return self.loading.on_hover(app, hit);
+        }
         if hit.pointer < 2
             && (!app.session.config.focus_follows_mouse_mode
                 || app.input_state.pointers[hit.pointer].now.move_mouse)
@@ -352,6 +453,10 @@ impl OverlayBackend for InteractiveBackend {
         HoverResult::consume()
     }
     fn on_pointer(&mut self, app: &mut AppState, hit: &PointerHit, pressed: bool) {
+        if self.screen.is_none() {
+            self.loading.on_pointer(app, hit, pressed);
+            return;
+        }
         if hit.pointer >= 2 {
             return;
         }
@@ -364,6 +469,9 @@ impl OverlayBackend for InteractiveBackend {
         self.request(hit, Action::Press(button));
     }
     fn on_left(&mut self, app: &mut AppState, pointer: usize) {
+        if self.screen.is_none() {
+            self.loading.on_left(app, pointer);
+        }
         if pointer < 2 {
             self.release(app, Some(pointer));
         }
@@ -397,6 +505,35 @@ impl OverlayBackend for InteractiveBackend {
 #[cfg(test)]
 mod tests {
     use super::InputState;
+
+    #[test]
+    fn window_picker_layout_exposes_clickable_rows() {
+        use wgui::{assets::AssetPathRef, components::button::ComponentButton, parser::Fetchable};
+        let globals = wgui::globals::WguiGlobals::new(
+            Box::new(crate::gui::asset::GuiAsset {}),
+            &wlx_common::locale::WayVRLangProvider::default(),
+            &wgui::font_config::WguiFontConfig::default(),
+            std::path::PathBuf::from("/nonexistent-wayvr-test-assets"),
+            wgui::palette::WguiColorPalette::get_builtin("default"),
+        )
+        .unwrap();
+        let (_, parser) = wgui::parser::new_layout_from_assets(
+            &wgui::parser::ParseDocumentParams {
+                globals,
+                path: AssetPathRef::BuiltIn("gui/kde-window-picker.xml"),
+                extra: Default::default(),
+            },
+            Default::default(),
+        )
+        .unwrap();
+        for id in (0..super::PAGE_SIZE)
+            .map(|i| format!("choice_{i}"))
+            .chain(["previous".into(), "next".into()])
+        {
+            parser.fetch_component_as::<ComponentButton>(&id).unwrap();
+        }
+    }
+
     #[test]
     fn released_trigger_cannot_deliver_a_late_press() {
         let mut state = InputState::default();
