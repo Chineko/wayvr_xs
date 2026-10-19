@@ -63,7 +63,6 @@ jobs:
           chown -R builder:builder /build
           runuser -u builder -- env \
             WAYVR_XS_SOURCE="git+file:///build/source#commit=$SOURCE_COMMIT" \
-            WAYVR_XS_PKGREL="${{ github.run_number }}.${{ github.run_attempt }}" \
             CARGO_HOME=/build/cargo CARGO_BUILD_JOBS=2 \
             bash -c 'cd /build/package && makepkg --noconfirm'
       - name: Install and smoke-test package
