@@ -4,27 +4,52 @@ Use Plasma's Wayland session. Start WiVRn and connect the headset before
 launching WayVR XS. This package builds the fork's `feat/xs-ultrawide-panels`
 branch with Wayland and OpenXR enabled.
 
-## Install a prebuilt package
+## Enable normal Arch updates
 
-1. Open this fork's [Arch package workflow](https://github.com/Chineko/wayvr_xs/actions/workflows/build-arch.yml).
-2. Choose a successful run for `feat/xs-ultrawide-panels`. Check the commit
-   shown on that run, then download its **wayvr-xs-arch-x86_64** artifact.
-3. Extract the ZIP. In that directory, install the package:
+This fork publishes successful Arch builds to its own **wayvr-xs** pacman
+repository on GitHub. It follows `feat/xs-ultrawide-panels` and uses the same
+package name as the manually installed package, so settings are preserved.
 
-   ```sh
-   sudo pacman -Syu --needed xdg-desktop-portal-kde
-   sudo pacman -U ./wayvr-xs-git-*.pkg.tar.zst
-   ```
+Add this block once to the end of `/etc/pacman.conf` using `sudoedit /etc/pacman.conf`:
 
-The artifact also contains a SHA-256 checksum and source commit ID. You can
-check the downloaded package with `sha256sum -c SHA256SUMS` before installation.
-Packages are built against current Arch repositories; keep Arch up to date.
-Artifacts are retained for 30 days. If no artifact is available, build locally
-using the instructions below.
+```ini
+[wayvr-xs]
+SigLevel = Optional
+Server = https://github.com/Chineko/wayvr_xs/releases/download/arch-repo
+```
 
-For later updates, download the next successful build and run the same
-`pacman -U` command. This is a local package, not an AUR submission or a pacman
-repository: `pacman -Syu` alone does not fetch new WayVR XS builds.
+`SigLevel = Optional` applies only to this personal repository: its packages are
+unsigned and downloaded over HTTPS. Other repositories keep their existing
+signature policy. This is a third-party repository, not an official Arch repo
+or an AUR package.
+
+Then run:
+
+```sh
+sudo pacman -Syu wayvr-xs-git
+```
+
+Future updates are included in your normal `sudo pacman -Syu` (and graphical
+package managers that use pacman repositories). Only successful builds are
+published; failed builds leave the last published version available. You do
+not need to download Actions ZIPs or compile the application for routine updates.
+Close WayVR before relaunching an updated version.
+
+## Install a package manually
+
+As a fallback, open the [Arch package workflow](https://github.com/Chineko/wayvr_xs/actions/workflows/build-arch.yml),
+sign in to GitHub, and download **wayvr-xs-arch-x86_64** from a successful run's
+Artifacts section. Extract the ZIP, then run:
+
+```sh
+sha256sum -c SHA256SUMS
+sudo pacman -U ./wayvr-xs-git-*.pkg.tar.zst
+```
+
+The archive includes the source commit ID. Artifacts are retained for 30 days;
+the [Arch repository release](https://github.com/Chineko/wayvr_xs/releases/tag/arch-repo)
+provides persistent package downloads without requiring a GitHub login.
+Packages use current Arch libraries; keep the system up to date.
 
 ## Build and install locally
 

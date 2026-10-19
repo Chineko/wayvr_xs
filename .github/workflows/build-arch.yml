@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: arch-package-${{ github.repository }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  # Do not interrupt replacement of the live repository database.
+  cancel-in-progress: false
 
 jobs:
   package:
@@ -32,7 +33,8 @@ jobs:
           ref: ${{ env.SOURCE_COMMIT }}
       - name: Check packaging syntax
         run: |
-          bash -n packaging/arch/PKGBUILD
+          bash -n packaging/arch/PKGBUILD packaging/arch/make-repository.sh packaging/arch/publish-repository.sh
+          shellcheck --shell=bash packaging/arch/make-repository.sh packaging/arch/publish-repository.sh
           shellcheck --shell=bash --exclude=SC2034,SC2154 packaging/arch/PKGBUILD
           desktop-file-validate packaging/arch/wayvr-xs.desktop
       - name: Install package dependencies
@@ -61,6 +63,7 @@ jobs:
           chown -R builder:builder /build
           runuser -u builder -- env \
             WAYVR_XS_SOURCE="git+file:///build/source#commit=$SOURCE_COMMIT" \
+            WAYVR_XS_PKGREL="${{ github.run_number }}.${{ github.run_attempt }}" \
             CARGO_HOME=/build/cargo CARGO_BUILD_JOBS=2 \
             bash -c 'cd /build/package && makepkg --noconfirm'
       - name: Install and smoke-test package
@@ -80,6 +83,11 @@ jobs:
           printf '%s\n' "$SOURCE_COMMIT" > artifacts/SOURCE-COMMIT.txt
           cd artifacts
           sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - name: Prepare pacman repository
+        run: |
+          cp packaging/arch/wayvr-xs.conf artifacts/
+          cd artifacts
+          bash "$GITHUB_WORKSPACE/packaging/arch/make-repository.sh"
       - uses: actions/upload-artifact@v4
         with:
           name: wayvr-xs-arch-x86_64
@@ -94,3 +102,28 @@ jobs:
             /build/cargo
             /build/package/src/target
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+  publish:
+    timeout-minutes: 10
+    needs: package
+    if: github.repository == 'Chineko/wayvr_xs' && github.ref == 'refs/heads/feat/xs-ultrawide-panels'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: wayvr-xs-arch-x86_64
+          path: repository
+      - name: Publish verified package and pacman database
+        working-directory: repository
+        run: bash ../packaging/arch/publish-repository.sh
