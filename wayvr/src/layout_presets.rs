@@ -159,15 +159,25 @@ pub fn apply_on_startup(config: &mut GeneralConfig) -> anyhow::Result<()> {
     apply_from(&path(), config)
 }
 fn apply_from(path: &Path, config: &mut GeneralConfig) -> anyhow::Result<()> {
-    let mut library = Library::read(path)?;
+    let library = Library::read(path)?;
     let Some(id) = library.pending.as_ref().or(library.startup.as_ref()) else {
         return Ok(());
     };
     let state = library.find(id)?.state.clone();
+    state.apply(config);
+    Ok(())
+}
+
+// Commit the one-time selection only after a backend has constructed its scene.
+// A runtime retry must see the same pending preset, rather than last session.
+pub fn acknowledge_startup() -> anyhow::Result<()> {
+    acknowledge_at(&path())
+}
+fn acknowledge_at(path: &Path) -> anyhow::Result<()> {
+    let mut library = Library::read(path)?;
     if library.pending.take().is_some() {
         library.write(path)?;
     }
-    state.apply(config);
     Ok(())
 }
 
@@ -292,6 +302,10 @@ mod tests {
         apply_from(&path, &mut config).unwrap();
         assert_eq!(config.sets[0].hidden_overlays["XSApp-test"].alpha, 0.9);
         assert_eq!(config.theme_path, theme);
+        assert!(Library::read(&path).unwrap().pending.is_some());
+        apply_from(&path, &mut config).unwrap();
+        assert_eq!(config.sets[0].hidden_overlays["XSApp-test"].alpha, 0.9);
+        acknowledge_at(&path).unwrap();
         assert!(Library::read(&path).unwrap().pending.is_none());
         apply_from(&path, &mut config).unwrap();
         assert_eq!(config.sets[0].hidden_overlays["XSApp-test"].alpha, 0.6);

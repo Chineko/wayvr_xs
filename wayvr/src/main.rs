@@ -33,7 +33,9 @@ mod test;
 mod windowing;
 
 use std::{
-    path::PathBuf,
+    ffi::{OsStr, OsString},
+    os::unix::{ffi::OsStrExt, process::CommandExt},
+    path::{Path, PathBuf},
     process::Command,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     time::{Duration, Instant},
@@ -189,19 +191,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if RESTART.load(Ordering::Relaxed) {
         log::warn!("Restarting...");
-        let exe = std::env::current_exe()?;
-        let mut args = vec!["--replace", "--show"];
-
-        match used_backend {
-            Some(XrBackend::OpenXR) => args.push("--openxr"),
-            Some(XrBackend::OpenVR) => args.push("--openvr"),
-            _ => {}
-        }
-
-        let _ = Command::new(exe).args(args).spawn();
+        let exe = restart_program(
+            &std::env::current_exe()?,
+            std::env::var_os("APPIMAGE").as_deref(),
+        );
+        let args = restart_arguments(std::env::args_os().skip(1), used_backend);
+        let mut command = Command::new(exe);
+        command.args(args);
+        let error = restart_exec(command);
+        log::error!("Could not restart WayVR: {error}");
+        return Err(error.into());
     }
 
     Ok(())
+}
+
+// Re-exec keeps the desktop launcher's process scope and avoids racing our
+// own PID file. Prefer the current installed binary after a package update.
+fn restart_program(current: &Path, appimage: Option<&OsStr>) -> PathBuf {
+    if let Some(image) = appimage.filter(|path| Path::new(path).is_file()) {
+        return PathBuf::from(image);
+    }
+    if let Some(path) = current.as_os_str().as_bytes().strip_suffix(b" (deleted)") {
+        let path = Path::new(OsStr::from_bytes(path));
+        if path.is_file() {
+            return path.to_path_buf();
+        }
+    }
+    current.to_path_buf()
+}
+fn restart_arguments(
+    arguments: impl IntoIterator<Item = OsString>,
+    backend: Option<XrBackend>,
+) -> Vec<OsString> {
+    let mut args: Vec<_> = arguments
+        .into_iter()
+        .filter(|arg| arg != "--replace")
+        .collect();
+    if !args.iter().any(|arg| arg == "--show") {
+        args.push("--show".into());
+    }
+    if !args.iter().any(|arg| arg == "--wait") {
+        args.push("--wait".into());
+    }
+    if !args
+        .iter()
+        .any(|arg| arg == "--openxr" || arg == "--openvr")
+    {
+        match backend {
+            Some(XrBackend::OpenXR) => args.push("--openxr".into()),
+            Some(XrBackend::OpenVR) => args.push("--openvr".into()),
+            _ => {}
+        }
+    }
+    args
+}
+fn restart_exec(mut command: Command) -> std::io::Error {
+    command.exec()
 }
 
 #[allow(unused_mut, clippy::similar_names)]
@@ -394,11 +440,14 @@ fn ensure_single_instance(replace: bool) -> bool {
     let mut path =
         std::env::var("XDG_RUNTIME_DIR").map_or_else(|_| PathBuf::from("/tmp"), PathBuf::from);
     path.push("wayvr.pid");
-
+    ensure_single_instance_at(&path, replace)
+}
+fn ensure_single_instance_at(path: &Path, replace: bool) -> bool {
     if path.exists() {
         // load contents
-        if let Ok(pid_str) = std::fs::read_to_string(&path)
+        if let Ok(pid_str) = std::fs::read_to_string(path)
             && let Ok(pid) = pid_str.trim().parse::<u32>()
+            && pid != std::process::id()
         {
             let mut system = sysinfo::System::new();
             system.refresh_processes(
@@ -420,4 +469,92 @@ fn ensure_single_instance(replace: bool) -> bool {
     std::fs::write(path, pid).unwrap();
 
     true
+}
+
+#[cfg(test)]
+mod restart_tests {
+    use super::*;
+    #[test]
+    fn restart_preserves_options_and_selected_backend() {
+        let args = restart_arguments(
+            [
+                "--replace",
+                "--wait",
+                "--no-audio",
+                "--headless",
+                "--log-to",
+                "/tmp/my log",
+            ]
+            .map(OsString::from),
+            Some(XrBackend::OpenXR),
+        );
+        assert_eq!(
+            args,
+            [
+                "--wait",
+                "--no-audio",
+                "--headless",
+                "--log-to",
+                "/tmp/my log",
+                "--show",
+                "--openxr"
+            ]
+            .map(OsString::from)
+        );
+        let args = restart_arguments(
+            ["--show", "--openvr"].map(OsString::from),
+            Some(XrBackend::OpenVR),
+        );
+        assert_eq!(args, ["--show", "--openvr", "--wait"].map(OsString::from));
+    }
+    #[test]
+    fn updated_executable_and_appimage_resolve_to_live_files() {
+        let root = std::env::temp_dir().join(format!("xs-restart-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let binary = root.join("wayvr-xs");
+        let image = root.join("WayVR.AppImage");
+        std::fs::write(&binary, b"installed").unwrap();
+        std::fs::write(&image, b"image").unwrap();
+        let mut deleted = binary.as_os_str().to_os_string();
+        deleted.push(" (deleted)");
+        assert_eq!(restart_program(Path::new(&deleted), None), binary);
+        assert_eq!(restart_program(&binary, Some(image.as_os_str())), image);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn own_pid_file_is_accepted_without_replacing_another_process() {
+        let path = std::env::temp_dir().join(format!("xs-pid-{}", uuid::Uuid::new_v4()));
+        std::fs::write(&path, std::process::id().to_string()).unwrap();
+        assert!(ensure_single_instance_at(&path, false));
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn restart_exec_preserves_pid() {
+        const STAGE: &str = "WAYVR_XS_REEXEC_PROBE";
+        const PID: &str = "WAYVR_XS_REEXEC_PROBE_PID";
+        let stage = std::env::var(STAGE).unwrap_or_default();
+        if stage == "after" {
+            assert_eq!(std::process::id().to_string(), std::env::var(PID).unwrap());
+            return;
+        }
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args([
+            "--exact",
+            "restart_tests::restart_exec_preserves_pid",
+            "--nocapture",
+        ]);
+        if stage == "before" {
+            command
+                .env(STAGE, "after")
+                .env(PID, std::process::id().to_string());
+            panic!("exec failed: {}", restart_exec(command));
+        }
+        let output = command.env(STAGE, "before").output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+    }
 }

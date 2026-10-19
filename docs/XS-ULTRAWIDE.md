@@ -303,3 +303,10 @@ the frame bar spans 0–33.3 ms. Values remain numeric beside each bar. Unavaila
 or warming-up readings show **—** with an empty track. Frame data is app-loop
 timing, not compositor GPU timing. Wrist footprint and hidden-panel sampling
 behavior are retained.
+
+Preset restart now replaces the WayVR process in place, retains launch options
+and waits for the VR runtime if temporarily unavailable. It resolves an updated
+installed binary instead of using Linux's old `(deleted)` executable path. The
+one-time preset choice is acknowledged after the backend constructs its scene,
+so a runtime retry does not lose the selected layout. Restart failures are
+logged rather than silently ignored.

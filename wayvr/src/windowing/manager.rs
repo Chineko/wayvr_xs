@@ -243,6 +243,9 @@ where
         }
 
         me.initialized = true;
+        if let Err(error) = crate::layout_presets::acknowledge_startup() {
+            log::warn!("Could not acknowledge preset startup: {error:#}");
+        }
 
         Ok(me)
     }
