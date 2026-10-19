@@ -6,10 +6,10 @@ pub(super) struct PanelGeometry {
     pub full: [u32; 2],
 }
 impl PanelGeometry {
-    pub fn new(content: Option<[u32; 2]>, expanded: bool) -> Self {
+    pub fn new(content: Option<[u32; 2]>, expanded: bool, quick: bool) -> Self {
         let content = content.unwrap_or([1280, 0]);
         let width = content[0].max(1);
-        let controls = if expanded { 792 } else { 72 };
+        let controls = 72 + if expanded { 720 } else { 0 } + if quick { 144 } else { 0 };
         let extra = ((u64::from(width) * controls).div_ceil(1280)) as u32;
         Self {
             content,
@@ -63,8 +63,8 @@ mod tests {
     fn controller_rays_match_presented_pixels_and_controls() {
         use crate::windowing::raycast_overlay;
         for content in [[1920, 1080], [400, 1000]] {
-            for expanded in [false, true] {
-                let g = PanelGeometry::new(Some(content), expanded);
+            for (expanded, quick) in [(false, false), (true, false), (false, true), (true, true)] {
+                let g = PanelGeometry::new(Some(content), expanded, quick);
                 for curvature in [None, Some(0.2)] {
                     for uv in [Vec2::new(0.1, 0.1), Vec2::splat(0.5), Vec2::new(0.8, 0.95)] {
                         let x = uv.x - 0.5;
@@ -91,8 +91,8 @@ mod tests {
     #[test]
     fn expanding_preserves_app_width_and_center_for_both_aspects() {
         for content in [[1920, 1080], [400, 1000]] {
-            for expanded in [false, true] {
-                let g = PanelGeometry::new(Some(content), expanded);
+            for (expanded, quick) in [(false, false), (true, false), (false, true), (true, true)] {
+                let g = PanelGeometry::new(Some(content), expanded, quick);
                 let t = g.view_transform();
                 let aspect = g.full[0] as f32 / g.full[1] as f32;
                 let physical_width = t.matrix3.x_axis.length() * aspect.min(1.);
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn controls_never_map_to_desktop_input() {
         for expanded in [false, true] {
-            let g = PanelGeometry::new(Some([1920, 1080]), expanded);
+            let g = PanelGeometry::new(Some([1920, 1080]), expanded, false);
             let center = Vec2::new(0.5, 540. / g.full[1] as f32);
             assert!(
                 g.content_uv(center)
@@ -121,7 +121,7 @@ mod tests {
             assert!(g.content_uv(Vec2::NAN).is_none());
         }
         assert!(
-            PanelGeometry::new(None, true)
+            PanelGeometry::new(None, true, false)
                 .content_uv(Vec2::splat(0.5))
                 .is_none()
         );

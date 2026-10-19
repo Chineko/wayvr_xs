@@ -426,16 +426,7 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
                             app.tasks.enqueue(TaskType::Overlay(OverlayTask::Modify(
                                 OverlaySelector::Id(*state.id.borrow()),
                                 Box::new(move |app, owc| {
-                                    let Some(state) = owc.active_state.as_mut() else {
-                                        return;
-                                    };
-                                    adjust_panel(
-                                        &mut state.transform,
-                                        &app.input_state.hmd,
-                                        &action,
-                                    );
-                                    save_transform(state, app);
-                                    owc.dirty = true;
+                                    apply_quick_action(app, owc, &action);
                                 }),
                             )));
                             Ok(EventResult::Consumed)
@@ -911,6 +902,35 @@ pub fn resize_centered_from_uv(grab_uv: Vec2, cur_uv: Vec2, cur_extent: [u32; 2]
     out = out.max(MIN_SIZE);
 
     [out.x.round() as u32, out.y.round() as u32]
+}
+
+/// Shared by edit mode and the interactive panel's compact controls.
+pub fn apply_quick_action(app: &mut AppState, owc: &mut OverlayWindowConfig, action: &str) {
+    let Some(state) = owc.active_state.as_mut() else {
+        return;
+    };
+    match action {
+        "opacity_down" | "opacity_up" => {
+            let alpha =
+                (state.alpha + if action == "opacity_up" { 0.1 } else { -0.1 }).clamp(0.1, 1.);
+            cb_assign_alpha(app, owc, alpha);
+        }
+        "curve_down" | "curve_up" => {
+            let curve = (state.curvature.unwrap_or(0.)
+                + if action == "curve_up" { 0.05 } else { -0.05 })
+            .clamp(0., 0.5);
+            cb_assign_curve(app, owc, curve);
+        }
+        "pin" => {
+            state.grabbable = !state.grabbable;
+            owc.dirty = true;
+        }
+        _ => {
+            adjust_panel(&mut state.transform, &app.input_state.hmd, action);
+            save_transform(state, app);
+            owc.dirty = true;
+        }
+    }
 }
 
 /// Adjust only this panel, retaining its positioning mode and capture region.

@@ -8,12 +8,16 @@ use super::{
     capture::new_wlx_capture,
 };
 use crate::{
-    backend::input::{HoverResult, PointerHit},
+    backend::{
+        input::{HoverResult, PointerHit},
+        task::{OverlayTask, TaskType, ToggleMode},
+    },
     config::none_if_0,
     gui::panel::{GuiPanel, NewGuiPanelParams},
     state::AppState,
     subsystem::{hid::WheelDelta, input::InputFocus},
     windowing::{
+        OverlaySelector,
         backend::{FrameMeta, OverlayBackend, OverlayEventData, RenderResources, ShouldRender},
         window::{OverlayCategory, OverlayWindowConfig},
     },
@@ -54,6 +58,8 @@ const PAGE_SIZE: usize = 6;
 enum PickerCommand {
     Toggle,
     Refresh,
+    Quick,
+    Adjust(&'static str),
 }
 
 pub fn new_panel_name() -> Arc<str> {
@@ -135,6 +141,7 @@ struct InteractiveBackend {
     restore_app: Option<AppIdentity>,
     current_app: Option<AppIdentity>,
     expanded: bool,
+    quick: bool,
     geometry: PanelGeometry,
     gui_down: [bool; 2],
     loading: GuiPanel<Rc<RefCell<PickerState>>>,
@@ -207,6 +214,7 @@ pub fn new_interactive_window(
     for (id, command) in [
         ("change_app", PickerCommand::Toggle),
         ("refresh", PickerCommand::Refresh),
+        ("quick_toggle", PickerCommand::Quick),
     ] {
         let state = picker.clone();
         loading
@@ -214,6 +222,30 @@ pub fn new_interactive_window(
             .fetch_component_as::<wgui::components::button::ComponentButton>(id)?
             .on_click(Rc::new(move |_, _| {
                 state.borrow_mut().command = Some(command);
+                Ok(())
+            }));
+    }
+    for action in [
+        "width_down",
+        "width_up",
+        "nearer",
+        "farther",
+        "opacity_down",
+        "opacity_up",
+        "curve_down",
+        "curve_up",
+        "pin",
+        "recenter",
+        "hide",
+    ] {
+        let state = picker.clone();
+        loading
+            .parser_state
+            .fetch_component_as::<wgui::components::button::ComponentButton>(&format!(
+                "quick_{action}"
+            ))?
+            .on_click(Rc::new(move |_, _| {
+                state.borrow_mut().command = Some(PickerCommand::Adjust(action));
                 Ok(())
             }));
     }
@@ -226,7 +258,8 @@ pub fn new_interactive_window(
         current_app: restore_app.clone(),
         restore_app,
         expanded: true,
-        geometry: PanelGeometry::new(None, true),
+        quick: false,
+        geometry: PanelGeometry::new(None, true, false),
         gui_down: [false; 2],
         loading,
         screen: None,
@@ -466,7 +499,7 @@ impl InteractiveBackend {
             .as_mut()
             .and_then(OverlayBackend::frame_meta)
             .map(|m| m.extent);
-        let geometry = PanelGeometry::new(content, self.expanded || content.is_none());
+        let geometry = PanelGeometry::new(content, self.expanded || content.is_none(), self.quick);
         let changed = self.geometry != geometry;
         self.geometry = geometry;
         if changed {
@@ -475,6 +508,15 @@ impl InteractiveBackend {
             self.loading.max_size = vec2(geometry.full[0] as f32, geometry.full[1] as f32);
             let space = self.loading.parser_state.get_widget_id("content_space")?;
             let picker = self.loading.parser_state.get_widget_id("picker")?;
+            let quick = self.loading.parser_state.get_widget_id("quick_controls")?;
+            self.loading.layout.alterables.set_style(
+                quick,
+                StyleSetRequest::Display(if self.quick {
+                    Display::Flex
+                } else {
+                    Display::None
+                }),
+            );
             self.loading.layout.alterables.set_style(
                 space,
                 StyleSetRequest::Height(length(geometry.content[1] as f32 / scale)),
@@ -572,7 +614,30 @@ impl OverlayBackend for InteractiveBackend {
         }
         let command = self.loading.state.borrow_mut().command.take();
         if let Some(command) = command {
-            if matches!(command, PickerCommand::Toggle) && self.expanded && self.screen.is_some() {
+            if matches!(command, PickerCommand::Quick) {
+                self.release(app, None);
+                self.quick = !self.quick;
+            } else if let PickerCommand::Adjust(action) = command {
+                self.release(app, None);
+                let selector = OverlaySelector::Name(self.name.clone());
+                if action == "hide" {
+                    app.tasks
+                        .enqueue(TaskType::Overlay(OverlayTask::ToggleOverlay(
+                            selector,
+                            ToggleMode::EnsureOff,
+                        )));
+                } else {
+                    app.tasks.enqueue(TaskType::Overlay(OverlayTask::Modify(
+                        selector,
+                        Box::new(move |app, owc| {
+                            crate::overlays::edit::apply_quick_action(app, owc, action);
+                        }),
+                    )));
+                }
+            } else if matches!(command, PickerCommand::Toggle)
+                && self.expanded
+                && self.screen.is_some()
+            {
                 self.picker_worker = None;
                 self.next_app = None;
                 self.expanded = false;
@@ -825,6 +890,10 @@ mod tests {
         };
         let space = parser.get_widget_id("content_space").unwrap();
         let picker = parser.get_widget_id("picker").unwrap();
+        let quick = parser.get_widget_id("quick_controls").unwrap();
+        layout
+            .alterables
+            .set_style(quick, StyleSetRequest::Display(Display::None));
         layout
             .alterables
             .set_style(space, StyleSetRequest::Height(length(720_f32)));
@@ -848,8 +917,19 @@ mod tests {
             })
             .unwrap();
         assert!((layout.content_size.y - 792.).abs() < 0.1);
-        for content in [[1920, 1080], [1001, 777], [400, 1000], [2560, 1440]] {
-            let g = super::PanelGeometry::new(Some(content), true);
+        for (content, quick_open) in [[1920, 1080], [1001, 777], [400, 1000], [2560, 1440]]
+            .into_iter()
+            .flat_map(|c| [(c, false), (c, true)])
+        {
+            layout.alterables.set_style(
+                quick,
+                StyleSetRequest::Display(if quick_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                }),
+            );
+            let g = super::PanelGeometry::new(Some(content), true, quick_open);
             let scale = g.full[0] as f32 / 1280.;
             let viewport = glam::vec2(g.full[0] as f32, g.full[1] as f32) / scale;
             layout.alterables.set_style(
@@ -870,7 +950,26 @@ mod tests {
                 "{content:?}: {:?} vs {viewport:?}",
                 layout.content_size
             );
-            for id in ["previous", "refresh", "next"] {
+            for id in ["previous", "refresh", "next", "quick_toggle"]
+                .into_iter()
+                .chain(if quick_open {
+                    vec![
+                        "quick_width_down",
+                        "quick_width_up",
+                        "quick_nearer",
+                        "quick_farther",
+                        "quick_opacity_down",
+                        "quick_opacity_up",
+                        "quick_curve_down",
+                        "quick_curve_up",
+                        "quick_pin",
+                        "quick_recenter",
+                        "quick_hide",
+                    ]
+                } else {
+                    vec![]
+                })
+            {
                 let clicked = std::rc::Rc::new(std::cell::Cell::new(false));
                 let result = clicked.clone();
                 parser

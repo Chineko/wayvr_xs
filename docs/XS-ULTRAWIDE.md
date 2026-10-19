@@ -217,3 +217,18 @@ a monitor whose logical desktop origin is not zero.
 
 The geometry tests are automated. Headset rendering, capture performance and
 layout restoration still require validation on Arch Linux with WiVRn.
+
+### Compact interactive-panel controls
+
+Use **Controls ▾** beside the app selector to open the quick drawer without
+entering edit mode. It reuses size ±5%, distance ±10 cm and recenter behavior;
+opacity changes by 10% (minimum 10%), curvature by 0.05 (0–0.5).
+**Pin / unpin** locks controller grabbing while retaining app/button interaction.
+**Hide** keeps the saved panel; show it again from the existing panel list.
+The drawer may stay open alongside the app chooser. Opening either drawer keeps
+the app center and width fixed. Existing edit controls remain available for
+all panels; the compact drawer is currently for interactive app panels.
+
+Headset check: exercise every quick action, pin/unpin and hide/show, verify
+pointer alignment with both drawers open, then quit normally and restart to
+check size, position, opacity, curvature and the grab lock persist.

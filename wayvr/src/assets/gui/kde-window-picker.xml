@@ -2,8 +2,26 @@
   <elements>
     <div id="panel_root" width="100%" height="100%" flex_direction="column">
       <div id="content_space" width="100%" height="0" />
-      <rectangle id="footer" width="100%" height="72" padding="8" color="background" border="1" border_color="primary">
-        <Button id="change_app" width="100%" height="100%" padding="6" border="1" round="4"><label id="current_app" text="Change app ▾" size="28" color="on_background" /></Button>
+      <rectangle id="footer" width="100%" height="72" padding="8" gap="8" color="background" border="1" border_color="primary">
+        <Button id="change_app" width="0" flex_grow="1" height="100%" padding="6" border="1" round="4"><label id="current_app" text="Change app ▾" size="28" color="on_background" /></Button>
+        <Button id="quick_toggle" width="220" padding="6" border="1" round="4"><label text="Controls ▾" size="28" color="on_background" /></Button>
+      </rectangle>
+      <rectangle id="quick_controls" display="none" width="100%" height="144" padding="8" gap="8" flex_direction="column" color="background" border="1" border_color="primary">
+        <div width="100%" height="60" gap="8">
+          <Button id="quick_width_down" flex_grow="1" padding="6" border="1" round="4"><label text="Size −5%" size="24" color="on_background" /></Button>
+          <Button id="quick_width_up" flex_grow="1" padding="6" border="1" round="4"><label text="Size +5%" size="24" color="on_background" /></Button>
+          <Button id="quick_nearer" flex_grow="1" padding="6" border="1" round="4"><label text="Nearer" size="24" color="on_background" /></Button>
+          <Button id="quick_farther" flex_grow="1" padding="6" border="1" round="4"><label text="Farther" size="24" color="on_background" /></Button>
+          <Button id="quick_opacity_down" flex_grow="1" padding="6" border="1" round="4"><label text="Opacity −" size="24" color="on_background" /></Button>
+          <Button id="quick_opacity_up" flex_grow="1" padding="6" border="1" round="4"><label text="Opacity +" size="24" color="on_background" /></Button>
+        </div>
+        <div width="100%" height="60" gap="8">
+          <Button id="quick_curve_down" flex_grow="1" padding="6" border="1" round="4"><label text="Curve −" size="24" color="on_background" /></Button>
+          <Button id="quick_curve_up" flex_grow="1" padding="6" border="1" round="4"><label text="Curve +" size="24" color="on_background" /></Button>
+          <Button id="quick_pin" flex_grow="1" padding="6" border="1" round="4"><label text="Pin / unpin" size="24" color="on_background" /></Button>
+          <Button id="quick_recenter" flex_grow="1" padding="6" border="1" round="4"><label text="Recenter" size="24" color="on_background" /></Button>
+          <Button id="quick_hide" flex_grow="1" padding="6" border="1" round="4"><label text="Hide" size="24" color="on_background" /></Button>
+        </div>
       </rectangle>
       <rectangle id="picker" width="100%" height="720" padding="20" gap="12" flex_direction="column" color="background" border="2" border_color="primary">
         <label id="status" text="Loading app windows from all displays…" size="32" color="secondary" />
