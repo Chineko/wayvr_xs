@@ -59,6 +59,19 @@ fn refresh(common: &mut CallbackDataCommon, state: &Ui) {
         }
     }
 }
+fn bind_buttons(parser: &wgui::parser::ParserState, pending: &Rc<RefCell<Option<String>>>) {
+    let ids: Vec<_> = parser.data.components_by_id.keys().cloned().collect();
+    for id in ids {
+        let Ok(button) = parser.fetch_component_as::<ComponentButton>(&id) else {
+            continue;
+        };
+        let pending = pending.clone();
+        button.on_click(Rc::new(move |_, _| {
+            *pending.borrow_mut() = Some(id.to_string());
+            Ok(())
+        }));
+    }
+}
 pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
     let (library, message) = match Library::read(&crate::layout_presets::path()) {
         Ok(library) => (
@@ -88,20 +101,7 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
     panel.max_size = glam::vec2(1100., 900.);
     panel.state.labels =
         ["selection", "name", "status"].map(|id| panel.parser_state.get_widget_id(id).unwrap());
-    let ids: Vec<_> = panel.parser_state.data.ids.keys().cloned().collect();
-    for id in ids {
-        let Ok(button) = panel
-            .parser_state
-            .fetch_component_as::<ComponentButton>(&id)
-        else {
-            continue;
-        };
-        let pending = pending.clone();
-        button.on_click(Rc::new(move |_, _| {
-            *pending.borrow_mut() = Some(id.to_string());
-            Ok(())
-        }));
-    }
+    bind_buttons(&panel.parser_state, &pending);
     panel.layout.add_event_listener::<AppState, Ui>(
         panel.layout.tree_root_widget,
         EventListenerKind::InternalStateChange,
@@ -275,6 +275,8 @@ mod tests {
             })
             .unwrap();
         assert_eq!(layout.content_size, glam::vec2(1100., 900.));
+        let pending = Rc::new(RefCell::new(None));
+        bind_buttons(&parser, &pending);
         for id in [
             "save",
             "replace",
@@ -293,12 +295,6 @@ mod tests {
         ] {
             use wgui::components::ComponentTrait;
             let button = parser.fetch_component_as::<ComponentButton>(id).unwrap();
-            let clicked = Rc::new(std::cell::Cell::new(false));
-            let result = clicked.clone();
-            button.on_click(Rc::new(move |_, _| {
-                result.set(true);
-                Ok(())
-            }));
             let node = *layout.state.nodes.get(button.base().get_id()).unwrap();
             let mut pos = layout.state.get_node_size(node) * 0.5;
             let mut parent = Some(node);
@@ -333,7 +329,11 @@ mod tests {
             layout
                 .push_event(&Event::MouseUp(event), &mut (), &mut ())
                 .unwrap();
-            assert!(clicked.get(), "Rendered button center missed {id}");
+            assert_eq!(
+                pending.borrow_mut().take().as_deref(),
+                Some(id),
+                "Real action binding missed {id}"
+            );
         }
     }
 }

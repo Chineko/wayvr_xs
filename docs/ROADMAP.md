@@ -4,12 +4,13 @@
 
 Independent movement, interactive app selection/switching, dropdown alignment,
 and layout persistence across closing/updating/reopening are headset-confirmed.
-Compact interactive-panel controls are published in
-`26.8.0.r1706.gdea408c8-1`; their headset acceptance is next.
+Compact interactive-panel controls and the wrist PC performance dropdown are
+headset-confirmed. The layout manager needs its action-binding fix verified;
+app reconnection polish still awaits headset acceptance.
 
 ## Planned batches
 
-1. Finish quick-controls headset acceptance and address findings. Consider the
+1. Quick controls are headset-confirmed. Consider the
    compact drawer for regular screen panels, reusing existing edit controls.
 2. Named layout presets: implemented with in-VR naming, save/replace/rename/delete,
    startup selection and explicit Load & restart. Await combined headset acceptance.
@@ -18,7 +19,8 @@ Compact interactive-panel controls are published in
 4. Placement tools: alignment, matching sizes, edge snapping, curved rows and
    undo for accidental moves.
 5. Wrist dropdown and PC performance monitor: initial PC dropdown implemented;
-   request-driven CPU/RAM/GPU/VRAM/temperature readings await headset testing.
+   the wrist dropdown is headset-confirmed. Individual sensor availability remains
+   driver-dependent.
    Further work: a compact menu attached to the
    wrist for quick panel actions and layout switching, with an expandable PC
    performance view. Investigate CPU/GPU utilization, RAM/VRAM use, temperatures
