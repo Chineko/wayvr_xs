@@ -181,18 +181,89 @@ impl Dispatch<ZkdeScreencastStreamUnstableV1, ()> for WaylandState {
     }
 }
 
-struct ScriptGuard {
+struct ScriptSlot {
     bus: Bus,
     plugin: String,
     path: std::path::PathBuf,
+    active: bool,
 }
+
+// KWin 6.8 assigns script IDs from the current script count. Removing an older
+// script while newer ones exist can make a later load reuse an occupied D-Bus
+// object path. Serialize loads and retire our scripts in reverse load order.
+// Retired scripts are idle (picker) or lose their worker bus (input bridge).
+static SCRIPT_SLOTS: Mutex<Vec<ScriptSlot>> = Mutex::new(Vec::new());
+struct ScriptGuard {
+    plugin: String,
+}
+
+#[allow(
+    clippy::significant_drop_tightening,
+    reason = "KWin loads must be serialized with retirement across D-Bus calls"
+)]
+fn load_script(bus: &Bus, script: &str) -> anyhow::Result<(ScriptGuard, i32)> {
+    let plugin = format!("wayvr-xs-{}", uuid::Uuid::new_v4());
+    let directories = xdg::BaseDirectories::with_prefix("wayvr");
+    let path = directories
+        .get_runtime_directory()?
+        .join(format!("{plugin}.js"));
+    let cleanup_bus = Bus::new_session()?;
+    fs::write(&path, script)?;
+    let mut slots = SCRIPT_SLOTS.lock().unwrap();
+    let result: Result<(i32,), _> = bus
+        .with_proxy("org.kde.KWin", "/Scripting", Duration::from_secs(2))
+        .method_call(
+            "org.kde.kwin.Scripting",
+            "loadScript",
+            (path.to_string_lossy().as_ref(), &plugin),
+        );
+    let id = match result {
+        Ok((id,)) if id >= 0 => id,
+        other => {
+            let _ = fs::remove_file(&path);
+            bail!("KWin could not load temporary script: {other:?}");
+        }
+    };
+    slots.push(ScriptSlot {
+        bus: cleanup_bus,
+        plugin: plugin.clone(),
+        path,
+        active: true,
+    });
+    Ok((ScriptGuard { plugin }, id))
+}
+
 impl Drop for ScriptGuard {
+    #[allow(
+        clippy::significant_drop_tightening,
+        reason = "Retirement must finish before the next KWin load"
+    )]
     fn drop(&mut self) {
-        let _: Result<(bool,), _> = self
-            .bus
-            .with_proxy("org.kde.KWin", "/Scripting", Duration::from_millis(500))
-            .method_call("org.kde.kwin.Scripting", "unloadScript", (&self.plugin,));
-        let _ = fs::remove_file(&self.path);
+        let mut slots = SCRIPT_SLOTS.lock().unwrap();
+        if let Some(slot) = slots.iter_mut().find(|slot| slot.plugin == self.plugin) {
+            slot.active = false;
+        }
+        while slots.last().is_some_and(|slot| !slot.active) {
+            let slot = slots.pop().unwrap();
+            let _: Result<(bool,), _> = slot
+                .bus
+                .with_proxy("org.kde.KWin", "/Scripting", Duration::from_millis(500))
+                .method_call("org.kde.kwin.Scripting", "unloadScript", (&slot.plugin,));
+            // unloadScript schedules deletion; wait until KWin has actually
+            // retired the ID before allowing another load under this lock.
+            let started = Instant::now();
+            loop {
+                let loaded: Result<(bool,), _> = slot
+                    .bus
+                    .with_proxy("org.kde.KWin", "/Scripting", Duration::from_millis(500))
+                    .method_call("org.kde.kwin.Scripting", "isScriptLoaded", (&slot.plugin,));
+                if !matches!(loaded, Ok((true,))) || started.elapsed() > Duration::from_millis(500)
+                {
+                    break;
+                }
+            }
+            let _ = fs::remove_file(&slot.path);
+        }
     }
 }
 
@@ -202,19 +273,10 @@ fn select_window(
     tx: &mpsc::Sender<Event>,
     selected: &mpsc::Receiver<String>,
 ) -> anyhow::Result<String> {
-    let plugin = format!("wayvr-xs-{}", uuid::Uuid::new_v4());
-    let directories = xdg::BaseDirectories::with_prefix("wayvr");
-    let runtime = directories.get_runtime_directory()?;
-    let guard = ScriptGuard {
-        bus: Bus::new_session()?,
-        path: runtime.join(format!("{plugin}.js")),
-        plugin,
-    };
     let script = include_str!("picker.js").replace(
         "__BUS__",
         &serde_json::to_string(&bus.unique_name().to_string())?,
     );
-    fs::write(&guard.path, script)?;
     let (owner,): (String,) = bus
         .with_proxy(
             "org.freedesktop.DBus",
@@ -245,16 +307,7 @@ fn select_window(
         }),
     );
     let result = (|| {
-        let (id,): (i32,) = bus
-            .with_proxy("org.kde.KWin", "/Scripting", Duration::from_secs(2))
-            .method_call(
-                "org.kde.kwin.Scripting",
-                "loadScript",
-                (guard.path.to_string_lossy().as_ref(), &guard.plugin),
-            )?;
-        if id < 0 {
-            bail!("KWin could not load the window picker");
-        }
+        let (_guard, id) = load_script(bus, &script)?;
         let run = Message::new_method_call(
             "org.kde.KWin",
             format!("/Scripting/Script{id}"),
@@ -317,33 +370,13 @@ fn run(
         failed: None,
     };
 
-    let plugin = format!("wayvr-xs-{}", uuid::Uuid::new_v4());
-    let directories = xdg::BaseDirectories::with_prefix("wayvr");
-    let runtime = directories.get_runtime_directory()?;
-    let path = runtime.join(format!("{plugin}.js"));
     let script = include_str!("bridge.js")
         .replace("__UUID__", &serde_json::to_string(&uuid)?)
         .replace(
             "__BUS__",
             &serde_json::to_string(&bus.unique_name().to_string())?,
         );
-    // The runtime directory is private to this user; scripts are session-scoped.
-    fs::write(&path, script)?;
-    let cleanup_bus = Bus::new_session()?;
-    let guard = ScriptGuard {
-        bus: cleanup_bus,
-        plugin,
-        path,
-    };
-    let scripting = bus.with_proxy("org.kde.KWin", "/Scripting", Duration::from_secs(2));
-    let (script_id,): (i32,) = scripting.method_call(
-        "org.kde.kwin.Scripting",
-        "loadScript",
-        (guard.path.to_string_lossy().as_ref(), &guard.plugin),
-    )?;
-    if script_id < 0 {
-        bail!("KWin could not load the temporary input bridge");
-    }
+    let (guard, script_id) = load_script(&bus, &script)?;
     let (owner,): (String,) = bus
         .with_proxy(
             "org.freedesktop.DBus",
@@ -463,6 +496,71 @@ fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires explicit WAYVR_XS_TEST_WINDOW_UUID and EXTENT for a disposable KDE window"]
+    fn native_kde_concurrent_pickers() {
+        let uuid = std::env::var("WAYVR_XS_TEST_WINDOW_UUID").unwrap();
+        let extent: [u32; 2] =
+            serde_json::from_str(&std::env::var("WAYVR_XS_TEST_WINDOW_EXTENT").unwrap()).unwrap();
+        fn choose(worker: &Worker, uuid: &str) {
+            loop {
+                match worker.events.recv_timeout(Duration::from_secs(6)).unwrap() {
+                    Event::Choices(windows) => {
+                        assert!(windows.iter().any(|w| w.uuid == uuid));
+                        worker.selection.send(uuid.to_owned()).unwrap();
+                        return;
+                    }
+                    Event::Failed(error) => panic!("{error}"),
+                    _ => {}
+                }
+            }
+        }
+        fn check(workers: &[&Worker], extent: [u32; 2], already_ready: bool) {
+            let start = Instant::now();
+            let mut ready = vec![false; workers.len()];
+            ready[0] = already_ready;
+            let mut replied = vec![false; workers.len()];
+            while start.elapsed() < Duration::from_secs(3) {
+                for (i, worker) in workers.iter().enumerate() {
+                    let _ = worker.requests.try_send(Request {
+                        seq: 1,
+                        uv: [0.5, 0.5],
+                        extent,
+                        activate: false,
+                    });
+                    while let Ok(event) = worker.events.try_recv() {
+                        match event {
+                            Event::Ready(_) => ready[i] = true,
+                            Event::Reply(reply) if reply.seq == 1 => {
+                                assert!(reply.alive);
+                                replied[i] = true;
+                            }
+                            Event::Failed(error) => panic!("worker {i}: {error}"),
+                            _ => {}
+                        }
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            assert!(ready.iter().all(|v| *v), "not every panel captured");
+            assert!(
+                replied.iter().all(|v| *v),
+                "not every panel returned validated input replies"
+            );
+        }
+        let first = Worker::start();
+        let second = Worker::start();
+        // Both pickers exist before either app is selected.
+        choose(&first, &uuid);
+        choose(&second, &uuid);
+        check(&[&first, &second], extent, false);
+        drop(first);
+        let third = Worker::start();
+        choose(&third, &uuid);
+        // A new picker must not break the panel that remains open.
+        check(&[&second, &third], extent, true);
+    }
 
     /// Requires a disposable foreground KDE test window; never injects input.
     #[test]

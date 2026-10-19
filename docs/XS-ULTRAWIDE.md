@@ -134,7 +134,8 @@ Only one controller owns a held mouse button at a time. Releasing the trigger,
 leaving the panel, hiding/removing it, losing focus or disconnecting the bridge
 releases held input. Drags are supported while the pointer remains on the panel;
 leaving it ends the drag. Keyboard input follows the desktop's actual focused app.
-Each new session requires selecting the app again.
+Each new session requires selecting the app again. Multiple app pickers can be
+opened before selecting their windows.
 
 The bridge is a temporary KWin script plus KDE's private screencast protocol,
 not a permanent installed plugin. These implementation-detail APIs can change;
@@ -142,8 +143,9 @@ other desktops should use the view-only portal option. Normal cleanup unloads
 the script and removes its runtime file. Closing the panel also cancels selection.
 
 Local verification covers the Rust input state, JavaScript geometry/focus guards,
-and native KWin capture/validated coordinate replies before and after moving and
-resizing a disposable window. Actual controller clicks, typing, popup alignment,
+a regression test opening two pickers before selection and replacing one while
+the other remains active, and native KWin capture/validated coordinate replies
+before and after moving and resizing a disposable window. Actual controller clicks, typing, popup alignment,
 focus transitions and WiVRn reconnect still need one headset session. Check those
 along with hiding or deleting a panel during a held trigger. The existing portal
 edit-wrapper fix and system-shaderc build configuration are preserved.
