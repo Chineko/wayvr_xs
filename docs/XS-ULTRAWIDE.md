@@ -79,6 +79,35 @@ and the keyboard; verify their siblings stay still. Restart once to check the
 setting and positions persist. Disable it and verify anchored overlays move
 together again. Also test an item with Disable grab enabled.
 
+## Show an individual app window
+
+On KDE Wayland, open Browser, Discord or the app you want to see. In WayVR,
+press the **mirror +** button on the watch, or open the keyboard menu and choose
+**Add app window (view-only)**. KDE's desktop portal opens a window-only picker;
+select the desired app window and confirm sharing. Repeat for additional windows.
+The existing **Add a new mirror overlay** entry remains available as before.
+
+Each selected window gets its own movable mirror overlay. Use the same edit-mode
+width, distance, recenter, opacity and curvature controls, and enable Independent
+panel movement to grab it separately from other anchored overlays. Hide/show
+mirrors with their watch buttons; remove them using the existing edit-mode delete
+control. This captures one window, rather than cropping its position on the desktop.
+
+These mirrors are **view-only**: controller clicking, scrolling and typing into
+an arbitrary captured window are not implemented. Use the desktop overlay or
+physical mouse/keyboard to interact with the original app. Window mirrors do not
+expose desktop splitting or desktop pointer mapping. Window selection is requested
+afresh after restarting; automatic app-window restoration is not implemented.
+If a portal cannot share windows, this request fails instead of sharing a monitor.
+The watch button is hidden outside supported Wayland builds/sessions.
+
+In one headset session, select Browser and Discord separately, move both overlays,
+resize the original windows, and verify only the selected content appears. Check
+minimizing, closing and reopening an app, cancellation of the picker, and choosing
+while edit mode is active. Capture behavior when minimized or closed needs target
+KDE validation; a closed stream may retain its last image. Keep desktop split
+panels available if you need controller input.
+
 ## Build for Arch Linux and WiVRn
 
 For a pacman-managed install, KDE launcher, and prebuilt CI packages, use the

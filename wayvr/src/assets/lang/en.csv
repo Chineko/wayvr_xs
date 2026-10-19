@@ -171,3 +171,5 @@ EDIT_MODE.QUICK.WIDER,Width +5%,Quick panel controls
 EDIT_MODE.QUICK.NEARER,Nearer 10 cm,Quick panel controls
 EDIT_MODE.QUICK.FARTHER,Farther 10 cm,Quick panel controls
 EDIT_MODE.QUICK.RECENTER,Recenter panel,Quick panel controls
+BAR.ADD_APP_WINDOW,"Add app window (view-only)",Window-only portal capture control
+BAR.APP_WINDOW_HELP,"Choose a Browser, Discord or another app window in the desktop picker. Window mirrors are view-only.",Window-only portal capture control

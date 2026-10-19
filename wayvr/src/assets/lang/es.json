@@ -80,6 +80,8 @@
 		"CENTER": "Centro"
 	},
 	"BAR": {
+		"ADD_APP_WINDOW": "Add app window (view-only)",
+		"APP_WINDOW_HELP": "Choose a Browser, Discord or another app window in the desktop picker. Window mirrors are view-only.",
 		"ADD_MIRROR": "Añadir nuevo overlay de espejo",
 		"ADD_NEW_SET": "Añadir nuevo set",
 		"CLOSE_APP": "Cerrar aplicación",

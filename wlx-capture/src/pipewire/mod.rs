@@ -40,6 +40,38 @@ pub struct ScreenCastResponse {
     pub restore_token: Option<String>,
 }
 
+/// Sources the portal is allowed to offer in its picker.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenCastSources {
+    Monitors,
+    Windows,
+    #[default]
+    Any,
+}
+
+impl ScreenCastSources {
+    const fn requested_types(self) -> u32 {
+        match self {
+            Self::Monitors => SOURCE_MONITOR,
+            Self::Windows => SOURCE_WINDOW,
+            Self::Any => SOURCE_MONITOR | SOURCE_WINDOW | SOURCE_VIRTUAL,
+        }
+    }
+
+    fn supported_types(self, available: u32) -> Result<u32, ScreenCastError> {
+        let requested = self.requested_types();
+        let supported = requested & available;
+        if supported == 0 {
+            Err(ScreenCastError::UnsupportedSourceTypes {
+                requested,
+                available,
+            })
+        } else {
+            Ok(supported)
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct ScreenCastParams {
     /// Optional restore token.
@@ -48,9 +80,8 @@ pub struct ScreenCastParams {
     /// If true, use the first available: EMBEDDED, METADATA/FALLBACK, HIDDEN.
     pub embed_mouse: bool,
 
-    /// false: only request MONITOR
-    /// true: request MONITOR, WINDOW, VIRTUAL
-    pub screens_only: bool,
+    /// Restrict the picker to these source types; never widen on unsupported portals.
+    pub sources: ScreenCastSources,
 
     /// true: EXPLICITLY_REVOKED
     /// false: DO_NOT
@@ -481,19 +512,7 @@ impl ScreenCastManager {
                     "global portal properties not ready",
                 ))?;
 
-                let requested_types = if params.screens_only {
-                    SOURCE_MONITOR
-                } else {
-                    SOURCE_MONITOR | SOURCE_WINDOW | SOURCE_VIRTUAL
-                };
-
-                let source_types = requested_types & globals.source_types;
-                if source_types == 0 {
-                    return Err(ScreenCastError::UnsupportedSourceTypes {
-                        requested: requested_types,
-                        available: globals.source_types,
-                    });
-                }
+                let source_types = params.sources.supported_types(globals.source_types)?;
 
                 let cursor_mode = choose_cursor_mode(globals.cursor_modes, params.embed_mouse)
                     .ok_or(ScreenCastError::UnsupportedCursorMode {
@@ -888,5 +907,50 @@ pub fn screen_cast_select_blocking(
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod source_selection_tests {
+    use super::{
+        SOURCE_MONITOR, SOURCE_VIRTUAL, SOURCE_WINDOW, ScreenCastError, ScreenCastSources,
+    };
+
+    #[test]
+    fn app_picker_requests_windows_even_when_monitors_are_available() {
+        assert_eq!(
+            ScreenCastSources::Windows
+                .supported_types(SOURCE_MONITOR | SOURCE_WINDOW | SOURCE_VIRTUAL)
+                .unwrap(),
+            SOURCE_WINDOW
+        );
+    }
+
+    #[test]
+    fn app_picker_never_falls_back_to_desktop_capture() {
+        assert!(matches!(
+            ScreenCastSources::Windows.supported_types(SOURCE_MONITOR | SOURCE_VIRTUAL),
+            Err(ScreenCastError::UnsupportedSourceTypes {
+                requested: SOURCE_WINDOW,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn monitor_and_existing_mirror_requests_keep_their_source_types() {
+        assert_eq!(
+            ScreenCastSources::Monitors
+                .supported_types(SOURCE_MONITOR | SOURCE_WINDOW)
+                .unwrap(),
+            SOURCE_MONITOR
+        );
+        assert_eq!(
+            ScreenCastSources::Any
+                .supported_types(SOURCE_MONITOR | SOURCE_WINDOW)
+                .unwrap(),
+            SOURCE_MONITOR | SOURCE_WINDOW
+        );
+        assert!(ScreenCastSources::Any.supported_types(0).is_err());
     }
 }

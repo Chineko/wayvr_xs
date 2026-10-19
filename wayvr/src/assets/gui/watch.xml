@@ -155,6 +155,10 @@
               <sprite width="40" height="40" src="@/watch/wayvr_dashboard_mono.svg" />
             </Button>
           </div>
+          <Button macro="button_style" _press="::NewAppWindow" tooltip="BAR.ADD_APP_WINDOW" tooltip_side="top" skip="${not_window_capture}">
+            <sprite width="38" height="38" src_builtin="@/edit/mirror.svg" />
+            <label text="+" size="20" />
+          </Button>
           <VerticalSeparator />
           <div id="sets_root" gap="4">
             <!-- Will populate tags at runtime -->

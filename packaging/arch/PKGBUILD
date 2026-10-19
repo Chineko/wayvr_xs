@@ -45,7 +45,7 @@ check() {
   cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
   export SHADERC_LIB_DIR=/usr/lib
-  cargo test --release --frozen -p wayvr --no-default-features --features wayland,openxr
+  cargo test --release --frozen -p wayvr -p wlx-capture --no-default-features --features wayvr/wayland,wayvr/openxr
 }
 
 package() {

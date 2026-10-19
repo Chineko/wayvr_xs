@@ -10,7 +10,7 @@ use crate::{
     windowing::{Z_ORDER_WATCH, backend::OverlayEventData, window::OverlayWindowConfig},
 };
 use glam::{Affine3A, Quat, Vec3, vec3};
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use wgui::{
     assets::AssetPathRef,
     components::button::ComponentButton,
@@ -39,9 +39,28 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
         ..Default::default()
     };
     let watch_xml = "gui/watch.xml";
+    #[cfg(feature = "wayland")]
+    let window_capture_available =
+        app.feats.desktop_backend.is_wayland() && app.screencast_manager.is_some();
+    #[cfg(not(feature = "wayland"))]
+    let window_capture_available = false;
 
-    let mut panel =
-        GuiPanel::new_from_template(app, watch_xml, state, NewGuiPanelParams::default())?;
+    let mut panel = GuiPanel::new_from_template(
+        app,
+        watch_xml,
+        state,
+        NewGuiPanelParams {
+            extra_vars: HashMap::from([(
+                "not_window_capture".into(),
+                if window_capture_available {
+                    "0".into()
+                } else {
+                    "1".into()
+                },
+            )]),
+            ..Default::default()
+        },
+    )?;
 
     sets_or_overlays(&mut panel, app);
 

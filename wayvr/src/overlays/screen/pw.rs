@@ -13,7 +13,10 @@ use wgui::{
 };
 use wlx_capture::{
     WlxCapture,
-    pipewire::{ScreenCastParams, ScreenCastRequestId, ScreenCastResult, capture::PipewireCapture},
+    pipewire::{
+        ScreenCastParams, ScreenCastRequestId, ScreenCastResult, ScreenCastSources,
+        capture::PipewireCapture,
+    },
     wayland::WlxOutput,
 };
 use wlx_common::{astr_containers::AStrMapExt, overlays::ToastTopic};
@@ -91,7 +94,7 @@ impl ScreenCastBackend {
         let params = ScreenCastParams {
             token,
             embed_mouse: true,
-            screens_only: true,
+            sources: ScreenCastSources::Monitors,
             persist: true,
             allow_multiple: false,
         };
@@ -140,7 +143,7 @@ impl ScreenCastBackend {
         let params = ScreenCastParams {
             token,
             embed_mouse: true,
-            screens_only: true,
+            sources: ScreenCastSources::Monitors,
             persist: true,
             allow_multiple: false,
         };
