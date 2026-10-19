@@ -157,6 +157,11 @@ where
             me.add(OverlayWindowData::from_config(panel), app);
         }
 
+        me.add(
+            OverlayWindowData::from_config(crate::overlays::layout_presets::create(app)?),
+            app,
+        );
+
         // overwrite default layout with saved layout, if exists
         me.restore_layout(app);
         // Saved split sources may be hidden. Initialize their portal requests even
@@ -238,6 +243,41 @@ where
     #[allow(clippy::too_many_lines)]
     pub fn handle_task(&mut self, app: &mut AppState, task: OverlayTask) -> anyhow::Result<()> {
         match task {
+            OverlayTask::LayoutPreset(action) => {
+                let result = (|| -> anyhow::Result<String> {
+                    let mut library =
+                        crate::layout_presets::Library::read(&crate::layout_presets::path())?;
+                    let snapshot = if matches!(
+                        action,
+                        crate::layout_presets::Action::Save(_)
+                            | crate::layout_presets::Action::Replace(_)
+                    ) {
+                        self.persist_layout(app);
+                        Some(crate::config::AutoState::capture(&app.session.config))
+                    } else {
+                        None
+                    };
+                    let message = library.change(&action, snapshot)?;
+                    library.write(&crate::layout_presets::path())?;
+                    if matches!(action, crate::layout_presets::Action::Load(_)) {
+                        crate::RESTART.store(true, std::sync::atomic::Ordering::Relaxed);
+                        crate::RUNNING.store(false, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Ok(message)
+                })();
+                let message = result.unwrap_or_else(|error| format!("Preset error: {error:#}"));
+                if let Some(panel) =
+                    self.mut_by_selector(&OverlaySelector::Name("XSLayouts".into()))
+                {
+                    panel.config.backend.notify(
+                        app,
+                        OverlayEventData::CustomCommand {
+                            element: "preset_result".into(),
+                            command: crate::backend::task::ModifyPanelCommand::SetText(message),
+                        },
+                    )?;
+                }
+            }
             OverlayTask::ScreenLayout(sel, layout, restoring) => {
                 self.screen_layout(app, &sel, layout, restoring)?
             }

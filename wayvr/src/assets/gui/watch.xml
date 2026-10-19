@@ -163,6 +163,7 @@
             <sprite width="38" height="38" src_builtin="@/edit/normal.svg" />
             <label text="+" size="20" />
           </Button>
+          <Button macro="button_style" _press="::OverlayToggle XSLayouts" tooltip_str="Layout presets"><label text="Layouts" size="20" /></Button>
           <VerticalSeparator />
           <div id="sets_root" gap="4">
             <!-- Will populate tags at runtime -->

@@ -11,7 +11,8 @@ Compact interactive-panel controls are published in
 
 1. Finish quick-controls headset acceptance and address findings. Consider the
    compact drawer for regular screen panels, reusing existing edit controls.
-2. Named layout presets: save, load, rename, delete and choose a startup preset.
+2. Named layout presets: implemented with in-VR naming, save/replace/rename/delete,
+   startup selection and explicit Load & restart. Await combined headset acceptance.
 3. App reconnection polish: clear disconnected states, replacement of closed
    apps and handling several windows from the same application.
 4. Placement tools: alignment, matching sizes, edge snapping, curved rows and

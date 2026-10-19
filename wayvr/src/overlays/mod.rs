@@ -11,3 +11,5 @@ pub mod watch;
 pub mod wayvr;
 #[cfg(feature = "whisper")]
 pub mod whisper;
+
+pub mod layout_presets;

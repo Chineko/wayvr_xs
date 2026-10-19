@@ -232,3 +232,31 @@ all panels; the compact drawer is currently for interactive app panels.
 Headset check: exercise every quick action, pin/unpin and hide/show, verify
 pointer alignment with both drawers open, then quit normally and restart to
 check size, position, opacity, curvature and the grab lock persist.
+
+### Named layout presets
+
+Open **Layouts** on the wrist panel. Use its letter/number buttons, Space,
+Backspace and Clear to enter a name (up to 48 characters), then **Save new**.
+Previous/Next select a saved preset. **Rename** applies the entered name;
+**Replace** saves the current layout over the selected preset. Replace and
+Delete require a second click to confirm; another action cancels confirmation.
+
+**Load & restart** saves the selection and restarts WayVR normally, recreating
+captures and using existing app reconnection rules. It does not launch desktop
+apps. The snapshot contains all saved sets, hidden states, app identities,
+screen splits, positions, sizes, opacity, curvature, grab locks and saved backend
+attributes. View-only portal mirrors retain their existing persistence limits.
+General settings and controller bindings are not changed by presets.
+
+**Use at startup** loads the selected snapshot on future launches. **Startup:
+last session** restores the normal last-session behavior. An explicit load takes
+priority once over the startup choice. Deleting the startup preset clears that
+choice. Presets are stored in `~/.config/wayvr/layout-presets.json`, outside
+`conf.d`, using atomic replacement. Invalid or unsupported files are preserved
+and reported instead of overwritten. Loading requires one brief WayVR restart;
+it is not an in-place capture switch.
+
+Combined headset check: test the quick controls, save two different arrangements
+with one hidden/pinned panel, load each, rename and replace one, select a startup
+preset and restart, then switch startup back to last session. Delete a spare
+preset and verify it disappears. Recheck app selection and pointer alignment.

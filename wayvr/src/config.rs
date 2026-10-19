@@ -288,7 +288,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
 
 // Config that is saved after manipulating overlays
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AutoState {
     pub app_panels: Vec<wlx_common::app_panel::SavedAppPanel>,
     pub screen_splits: Vec<wlx_common::config::ScreenSplit>,
@@ -298,6 +298,27 @@ pub struct AutoState {
     pub attribs: AStrMap<Vec<BackendAttribValue>>,
 }
 
+impl AutoState {
+    pub fn capture(config: &GeneralConfig) -> Self {
+        Self {
+            app_panels: config.app_panels.clone(),
+            screen_splits: config.screen_splits.clone(),
+            sets: config.sets.clone(),
+            last_set: config.last_set,
+            spawn_overlays: config.spawn_overlays.clone(),
+            attribs: config.attribs.clone(),
+        }
+    }
+    pub fn apply(self, config: &mut GeneralConfig) {
+        config.app_panels = self.app_panels;
+        config.screen_splits = self.screen_splits;
+        config.sets = self.sets;
+        config.last_set = self.last_set;
+        config.spawn_overlays = self.spawn_overlays;
+        config.attribs = self.attribs;
+    }
+}
+
 fn get_state_path() -> PathBuf {
     config_io::ConfigRoot::Generic
         .get_conf_d_path()
@@ -305,14 +326,7 @@ fn get_state_path() -> PathBuf {
 }
 
 pub fn save_state(config: &GeneralConfig) -> anyhow::Result<()> {
-    let conf = AutoState {
-        app_panels: config.app_panels.clone(),
-        screen_splits: config.screen_splits.clone(),
-        sets: config.sets.clone(),
-        last_set: config.last_set,
-        spawn_overlays: config.spawn_overlays.clone(),
-        attribs: config.attribs.clone(),
-    };
+    let conf = AutoState::capture(config);
 
     let json = serde_json::to_string_pretty(&conf).unwrap(); // want panic
     std::fs::write(get_state_path(), json)?;

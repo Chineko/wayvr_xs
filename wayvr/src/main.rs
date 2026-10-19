@@ -24,6 +24,7 @@ mod config;
 mod graphics;
 mod gui;
 mod ipc;
+mod layout_presets;
 mod overlays;
 mod shaders;
 mod state;
@@ -118,7 +119,11 @@ struct Args {
 fn load_config() -> GeneralConfig {
     let config_root_path = config_io::ConfigRoot::Generic.ensure_dir();
     log::info!("Config root path: {}", config_root_path.display());
-    load_general_config()
+    let mut config = load_general_config();
+    if let Err(error) = layout_presets::apply_on_startup(&mut config) {
+        log::error!("Preset not applied: {error:#}");
+    }
+    config
 }
 
 fn init_run_params(no_audio: bool) -> backend::RunParams {
