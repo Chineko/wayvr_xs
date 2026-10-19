@@ -14,10 +14,7 @@ use crate::{
     state::AppState,
     subsystem::{hid::WheelDelta, input::InputFocus},
     windowing::{
-        backend::{
-            FrameMeta, OverlayBackend, OverlayEventData, RenderResources, ShouldRender,
-            ui_transform,
-        },
+        backend::{FrameMeta, OverlayBackend, OverlayEventData, RenderResources, ShouldRender},
         window::{OverlayCategory, OverlayWindowConfig},
     },
 };
@@ -458,7 +455,7 @@ impl InteractiveBackend {
         }
         Ok(())
     }
-    fn update_gui(&mut self, app: &mut AppState) -> anyhow::Result<()> {
+    fn update_gui(&mut self, app: &mut AppState) -> anyhow::Result<bool> {
         let content = self
             .screen
             .as_mut()
@@ -492,7 +489,8 @@ impl InteractiveBackend {
             |a| format!("{} ▾", a.title.chars().take(64).collect::<String>()),
         );
         self.set_label("current_app", &caption);
-        self.loading.update_layout(app)
+        self.loading.update_layout(app)?;
+        Ok(changed)
     }
     fn fail(&mut self, app: &mut AppState, reason: &str) {
         log::warn!("{}: {reason}", self.name);
@@ -632,8 +630,13 @@ impl OverlayBackend for InteractiveBackend {
         } else {
             ShouldRender::Unable
         };
-        self.update_gui(app)?;
+        let geometry_changed = self.update_gui(app)?;
         let gui = self.loading.should_render(app)?;
+        // Recreate and redraw the swapchain in the same frame as its new pose.
+        // Reusing the old image with the new aspect stretches a static app.
+        if geometry_changed {
+            return Ok(ShouldRender::Should);
+        }
         Ok(match (inner, gui) {
             (ShouldRender::Should, _) | (_, ShouldRender::Should) => ShouldRender::Should,
             (_, ShouldRender::Can) => ShouldRender::Can,
@@ -761,7 +764,10 @@ impl OverlayBackend for InteractiveBackend {
         self.loading.notify(app, event)
     }
     fn get_interaction_transform(&mut self) -> Option<Affine2> {
-        Some(ui_transform(self.geometry.full))
+        Some(self.geometry.interaction_transform())
+    }
+    fn interaction_pose(&self) -> Affine3A {
+        self.geometry.interaction_pose()
     }
     // No desktop split, stereo or mouse-rotation options: input uses the exact
     // untransformed window stream validated by KWin.

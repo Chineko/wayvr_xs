@@ -1,4 +1,4 @@
-use glam::{Affine3A, Quat, Vec2, Vec3};
+use glam::{Affine2, Affine3A, Quat, Vec2, Vec3};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct PanelGeometry {
@@ -43,10 +43,51 @@ impl PanelGeometry {
         let y = uv.y * self.full[1] as f32 / self.content[1] as f32;
         (y < 1.).then_some(Vec2::new(uv.x, y))
     }
+    pub fn interaction_pose(self) -> Affine3A {
+        // Ray casting uses width units, whereas presentation normalizes to the
+        // longest image edge. Keep the cylinder radius tied to the app width.
+        Affine3A::from_translation(self.view_transform().translation.into())
+    }
+    pub fn interaction_transform(self) -> Affine2 {
+        Affine2::from_scale_angle_translation(
+            Vec2::new(1., -(self.full[0] as f32 / self.full[1] as f32)),
+            0.,
+            Vec2::splat(0.5),
+        )
+    }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn controller_rays_match_presented_pixels_and_controls() {
+        use crate::windowing::raycast_overlay;
+        for content in [[1920, 1080], [400, 1000]] {
+            for expanded in [false, true] {
+                let g = PanelGeometry::new(Some(content), expanded);
+                for curvature in [None, Some(0.2)] {
+                    for uv in [Vec2::new(0.1, 0.1), Vec2::splat(0.5), Vec2::new(0.8, 0.95)] {
+                        let x = uv.x - 0.5;
+                        let y = (0.5 - uv.y) * g.full[1] as f32 / g.full[0] as f32;
+                        let (x, z) = curvature.map_or((x, 0.), |c| {
+                            let radius = 1. / (std::f32::consts::TAU * c);
+                            let angle = x / radius;
+                            (radius * angle.sin(), radius * (1. - angle.cos()))
+                        });
+                        let surface = g.interaction_pose().transform_point3(Vec3::new(x, y, z));
+                        let ray = Affine3A::from_translation(surface + Vec3::Z);
+                        let (_, local) =
+                            raycast_overlay(&ray, &g.interaction_pose(), curvature).unwrap();
+                        let actual = g.interaction_transform().transform_point2(local);
+                        assert!(
+                            actual.abs_diff_eq(uv, 0.0001),
+                            "{g:?} {curvature:?}: {actual:?} != {uv:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
     #[test]
     fn expanding_preserves_app_width_and_center_for_both_aspects() {
         for content in [[1920, 1080], [400, 1000]] {

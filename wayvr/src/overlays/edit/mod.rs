@@ -361,6 +361,9 @@ impl OverlayBackend for EditModeBackendWrapper {
     fn get_interaction_transform(&mut self) -> Option<glam::Affine2> {
         self.inner.get_interaction_transform()
     }
+    fn interaction_pose(&self) -> glam::Affine3A {
+        self.inner.interaction_pose()
+    }
     fn screen_source(&self) -> Option<std::sync::Arc<str>> {
         self.inner.screen_source()
     }

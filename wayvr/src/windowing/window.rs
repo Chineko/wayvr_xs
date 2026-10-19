@@ -241,7 +241,7 @@ impl OverlayWindowConfig {
         let Some(state) = self.active_state.as_ref() else {
             return false;
         };
-        let transform = state.transform;
+        let transform = state.transform * self.backend.interaction_pose();
         let curvature = state.curvature;
 
         let Some((_dist, local_pos)) = raycast_overlay(ray, &transform, curvature) else {

@@ -809,7 +809,7 @@ where
         if let Some(hit) = ray_test(
             &ray_origin,
             id,
-            &overlay_state.transform,
+            &(overlay_state.transform * overlay.config.backend.interaction_pose()),
             overlay_state.curvature.as_ref(),
         ) && hit.dist.is_finite()
         {

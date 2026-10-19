@@ -197,6 +197,11 @@ pub trait OverlayBackend: Any {
     fn on_pointer(&mut self, app: &mut AppState, hit: &PointerHit, pressed: bool);
     fn on_scroll(&mut self, app: &mut AppState, hit: &PointerHit, delta: WheelDelta);
     fn get_interaction_transform(&mut self) -> Option<Affine2>;
+    /// Local pose of the hit surface relative to the saved overlay pose.
+    /// Its scale is the physical width, including for curved surfaces.
+    fn interaction_pose(&self) -> Affine3A {
+        Affine3A::IDENTITY
+    }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue>;
     fn set_attrib(&mut self, app: &mut AppState, value: BackendAttribValue) -> bool;
 }
