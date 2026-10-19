@@ -218,6 +218,7 @@ pub fn new_interactive_window(
         ("refresh", PickerCommand::Refresh),
         ("reconnect", PickerCommand::Reconnect),
         ("quick_toggle", PickerCommand::Quick),
+        ("close_panel", PickerCommand::Adjust("close")),
     ] {
         let state = picker.clone();
         loading
@@ -668,6 +669,9 @@ impl OverlayBackend for InteractiveBackend {
                             selector,
                             ToggleMode::EnsureOff,
                         )));
+                } else if action == "close" {
+                    app.tasks
+                        .enqueue(TaskType::Overlay(OverlayTask::Drop(selector)));
                 } else {
                     app.tasks.enqueue(TaskType::Overlay(OverlayTask::Modify(
                         selector,
@@ -1006,26 +1010,32 @@ mod tests {
                 "{content:?}: {:?} vs {viewport:?}",
                 layout.content_size
             );
-            for id in ["previous", "refresh", "next", "reconnect", "quick_toggle"]
-                .into_iter()
-                .chain(if quick_open {
-                    vec![
-                        "quick_width_down",
-                        "quick_width_up",
-                        "quick_nearer",
-                        "quick_farther",
-                        "quick_opacity_down",
-                        "quick_opacity_up",
-                        "quick_curve_down",
-                        "quick_curve_up",
-                        "quick_pin",
-                        "quick_recenter",
-                        "quick_hide",
-                    ]
-                } else {
-                    vec![]
-                })
-            {
+            for id in [
+                "previous",
+                "refresh",
+                "next",
+                "reconnect",
+                "quick_toggle",
+                "close_panel",
+            ]
+            .into_iter()
+            .chain(if quick_open {
+                vec![
+                    "quick_width_down",
+                    "quick_width_up",
+                    "quick_nearer",
+                    "quick_farther",
+                    "quick_opacity_down",
+                    "quick_opacity_up",
+                    "quick_curve_down",
+                    "quick_curve_up",
+                    "quick_pin",
+                    "quick_recenter",
+                    "quick_hide",
+                ]
+            } else {
+                vec![]
+            }) {
                 let clicked = std::rc::Rc::new(std::cell::Cell::new(false));
                 let result = clicked.clone();
                 parser

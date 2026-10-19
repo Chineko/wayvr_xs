@@ -288,3 +288,8 @@ placeholder, reopen it and reconnect, then test two windows with the same app
 identity/title and choose explicitly. Check Refresh and pointer alignment.
 Open/close the wrist PC view, check CPU/RAM and each GPU against a desktop tool,
 and verify it follows the wrist without overlapping the watch buttons.
+
+Use **×** beside Controls to close an interactive panel and forget its saved
+definition in the current layout. **Hide** retains it for later use. Closing
+the overlay leaves the desktop application running. Saved named presets remain
+snapshots; loading an older preset can intentionally restore its saved panel.
