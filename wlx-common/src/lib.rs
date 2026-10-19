@@ -1,5 +1,6 @@
 use strum::{EnumIs, EnumString};
 
+pub mod app_panel;
 pub mod astr_containers;
 pub mod async_executor;
 pub mod audio;

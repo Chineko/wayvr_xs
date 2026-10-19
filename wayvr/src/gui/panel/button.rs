@@ -537,7 +537,9 @@ pub(super) fn setup_custom_button<S: 'static>(
                         if !test_button(data) || !test_duration(&button, app) {
                             return Ok(EventResult::Pass);
                         }
-                        let name = if window_only || interactive {
+                        let name = if interactive {
+                            crate::overlays::screen::kde::new_panel_name()
+                        } else if window_only {
                             crate::overlays::screen::mirror::new_app_window_name()
                         } else {
                             crate::overlays::screen::mirror::new_mirror_name()

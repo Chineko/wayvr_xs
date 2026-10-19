@@ -113,7 +113,7 @@ panels available if you need controller input.
 On KDE Wayland, open the watch's **mouse +** button or choose **Add interactive
 app (KDE, foreground)** in the keyboard menu. Choose Browser, Discord or another app from the list
 inside VR. The list includes all monitors and shows each window’s monitor name;
-use Previous/Next to browse additional pages. Open new apps before adding the panel.
+use Previous/Next to browse additional pages, or Refresh to include newly opened apps.
 This is a separate option from the tested view-only portal mirrors.
 
 The selected KWin window ID is used for both capture and input. Click the new VR
@@ -134,8 +134,37 @@ Only one controller owns a held mouse button at a time. Releasing the trigger,
 leaving the panel, hiding/removing it, losing focus or disconnecting the bridge
 releases held input. Drags are supported while the pointer remains on the panel;
 leaving it ends the drag. Keyboard input follows the desktop's actual focused app.
-Each new session requires selecting the app again. Multiple app pickers can be
-opened before selecting their windows.
+Multiple app pickers can be opened before selecting their windows.
+
+### Reuse an app panel
+
+Click the **app-name ▾** bar underneath the interactive window to open its app
+chooser. The current capture stays visible while choosing. Select an app from
+either monitor; use Refresh if it was opened after the list appeared. Click the
+bar again to cancel and keep the current app.
+
+Switching preserves placement, positioning mode, physical width, opacity and
+curvature. Height follows the selected app's aspect ratio. The chooser expands
+below the content without moving the app's center. Existing edit controls and
+Independent panel movement remain available. While the chooser is open, app
+pointer input is suspended; moving a held pointer into the controls releases its
+mouse button. Switching clears pending input before promoting the new capture.
+Click the new app once before typing with the virtual keyboard, as usual.
+
+### Restore app panels next session
+
+Interactive panels now save their app identity alongside the normal saved
+layout. On a normal exit/restart, each panel returns to its saved set, placement,
+width, opacity and curvature; hidden panels remain hidden. Closing/removing a
+panel removes its saved app definition. New panel names are stable unique IDs.
+
+Only a unique match for the saved app is reconnected automatically. An exact
+window title can distinguish multiple windows of the same app; if matching is
+ambiguous, the panel offers the chooser instead of guessing. Window UUIDs and
+process IDs are never persisted. If the app is not running, open it and use
+Refresh/choose a window in the existing panel. This feature does not launch apps.
+Panels created with older builds must be created once using this version before
+they can be saved. The layout lives in the existing WayVR saved-state file.
 
 The bridge is a temporary KWin script plus KDE's private screencast protocol,
 not a permanent installed plugin. These implementation-detail APIs can change;
@@ -145,7 +174,9 @@ the script and removes its runtime file. Closing the panel also cancels selectio
 Local verification covers the Rust input state, JavaScript geometry/focus guards,
 a regression test opening two pickers before selection and replacing one while
 the other remains active, and native KWin capture/validated coordinate replies
-before and after moving and resizing a disposable window. Actual controller clicks, typing, popup alignment,
+before and after moving and resizing a disposable window. App identity matching, hidden-layout serialization,
+footer input bounds and fixed-width/center geometry have dedicated checks.
+Actual controller clicks, typing, popup alignment,
 focus transitions and WiVRn reconnect still need one headset session. Check those
 along with hiding or deleting a panel during a held trigger. The existing portal
 edit-wrapper fix and system-shaderc build configuration are preserved.

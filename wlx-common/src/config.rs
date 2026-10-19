@@ -345,6 +345,9 @@ pub struct ScreenSplit {
 #[derive(Deserialize, Serialize)]
 pub struct GeneralConfig {
 	#[serde(default)]
+	pub app_panels: Vec<crate::app_panel::SavedAppPanel>,
+
+	#[serde(default)]
 	pub screen_splits: Vec<ScreenSplit>,
 
 	#[serde(default = "def_theme_path")]

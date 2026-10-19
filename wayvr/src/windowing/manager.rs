@@ -168,6 +168,36 @@ where
         }
         me.overlays_changed(app)?;
 
+        #[cfg(feature = "wayland")]
+        for saved in app.session.config.app_panels.clone() {
+            if me.lookup(&saved.name).is_some() {
+                continue;
+            }
+            let mut config =
+                match crate::overlays::screen::kde::new_interactive_window(saved.name.clone(), app)
+                {
+                    Ok(config) => config,
+                    Err(error) => {
+                        log::warn!("Could not restore app panel {}: {error}", saved.name);
+                        continue;
+                    }
+                };
+            config.global = me
+                .global_set
+                .inactive_overlays
+                .arc_get(&saved.name)
+                .is_some()
+                || me.global_set.hidden_overlays.arc_get(&saved.name).is_some();
+            // add_with_spawn_pos applies saved set/global states, including hidden
+            // panels. Never activate a restored panel merely because it exists.
+            config.show_on_spawn = false;
+            me.add_with_spawn_pos(
+                OverlayWindowData::from_config(config),
+                app,
+                SpawnPos::FixedNoRealign,
+            );
+        }
+
         // recreate saved passthru overlays
         let saved_passthrus: Vec<_> = app
             .session
@@ -1097,6 +1127,16 @@ impl<T> OverlayWindowManager<T> {
                 .log_err("Could not pause removed overlay");
         }
         let ret_val = self.overlays.remove(id);
+        if let Some(removed) = ret_val.as_ref() {
+            let previous = app.session.config.app_panels.len();
+            app.session
+                .config
+                .app_panels
+                .retain(|panel| panel.name != removed.config.name);
+            if previous != app.session.config.app_panels.len() {
+                let _ = save_state(&app.session.config).log_err("Could not save removed app panel");
+            }
+        }
         let internal = ret_val.as_ref().is_some_and(|o| {
             matches!(
                 o.config.category,

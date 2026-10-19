@@ -73,10 +73,13 @@ pub struct WindowChoice {
     pub uuid: String,
     pub title: String,
     pub output: String,
+    #[serde(default)]
+    pub app_id: String,
 }
 
 pub enum Event {
     Choices(Vec<WindowChoice>),
+    Selected(WindowChoice),
     Ready(u32),
     Reply(Reply),
     Failed(String),
@@ -336,6 +339,12 @@ fn select_window(
                     .as_ref()
                     .is_some_and(|windows| windows.iter().any(|w| w.uuid == uuid))
             {
+                if let Some(window) = listed
+                    .as_ref()
+                    .and_then(|windows| windows.iter().find(|w| w.uuid == uuid))
+                {
+                    let _ = tx.send(Event::Selected(window.clone()));
+                }
                 return Ok(uuid);
             }
             if listed.is_none() && started.elapsed() > Duration::from_secs(5) {
@@ -571,6 +580,7 @@ mod tests {
             serde_json::from_str(&std::env::var("WAYVR_XS_TEST_WINDOW_EXTENT").unwrap()).unwrap();
         let worker = Worker::start();
         let mut listed = false;
+        let mut selected = false;
         let start = Instant::now();
         let mut ready = false;
         let mut valid = false;
@@ -581,7 +591,9 @@ mod tests {
                 seq: 1,
                 uv: [0.5, 0.5],
                 extent,
-                activate: false,
+                // Focus the explicitly supplied disposable fixture; no HID is
+                // emitted. The desktop may have changed focus during compilation.
+                activate: true,
             });
             let _ = worker.requests.try_send(Request {
                 seq: 2,
@@ -602,8 +614,22 @@ mod tests {
                             windows.iter().any(|w| w.uuid == uuid),
                             "Disposable window missing from all-output picker"
                         );
+                        assert!(
+                            !windows
+                                .iter()
+                                .find(|w| w.uuid == uuid)
+                                .unwrap()
+                                .app_id
+                                .is_empty(),
+                            "KWin must expose a stable app identity for the test fixture"
+                        );
                         worker.selection.send(uuid.clone()).unwrap();
                         listed = true;
+                    }
+                    Event::Selected(window) => {
+                        assert_eq!(window.uuid, uuid);
+                        assert!(!window.app_id.is_empty());
+                        selected = true;
                     }
                     Event::Ready(node) => {
                         assert!(node > 0);
@@ -633,6 +659,10 @@ mod tests {
             }
         }
         assert!(listed, "KWin did not enumerate windows");
+        assert!(
+            selected,
+            "KWin selection did not report its stable app identity"
+        );
         assert!(ready, "KWin did not create the capture stream");
         assert!(rejected_stale && rejected_outside);
         assert!(
