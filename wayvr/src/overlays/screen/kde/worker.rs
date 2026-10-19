@@ -295,7 +295,7 @@ fn select_window(
         Box::new(move |message, connection| {
             if message
                 .sender()
-                .is_none_or(|sender| sender.as_ref() != owner)
+                .is_none_or(|sender| &*sender != owner.as_str())
             {
                 return true;
             }
@@ -397,7 +397,7 @@ fn run(
         Box::new(move |message, _| {
             if message
                 .sender()
-                .is_none_or(|sender| sender.as_ref() != owner)
+                .is_none_or(|sender| &*sender != owner.as_str())
             {
                 return true;
             }
