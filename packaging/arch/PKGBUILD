@@ -12,6 +12,8 @@ depends=(
   'vulkan-icd-loader' 'vulkan-driver' 'wayland' 'xdg-desktop-portal'
 )
 makedepends=('clang' 'cmake' 'git' 'python' 'rust' 'shaderc')
+# The GUI layout test shapes labels, including on minimal headless builders.
+checkdepends=('ttf-dejavu')
 optdepends=(
   'xdg-desktop-portal-kde: screen sharing on KDE Plasma'
   'xwayland-satellite: run X11 applications inside WayVR'

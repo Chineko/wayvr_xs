@@ -41,7 +41,7 @@ jobs:
         id: dependencies
         run: |
           source packaging/arch/PKGBUILD
-          pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}"
+          pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}" "${checkdepends[@]}"
           printf 'fingerprint=%s\n' "$(pacman -Q | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Prepare unprivileged build
         run: |
