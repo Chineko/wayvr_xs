@@ -15,3 +15,5 @@ pub mod whisper;
 pub mod layout_presets;
 
 pub mod performance;
+
+pub mod media;

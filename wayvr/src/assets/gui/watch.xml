@@ -96,7 +96,7 @@
 
   <elements>
     <!-- Fixed canvas reserves shelf, tooltip and battery space so the base never jumps. -->
-    <div id="watch_canvas" width="584" height="800" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
+    <div id="watch_canvas" width="584" height="880" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
       <div id="shelf_slot" width="520" height="320" flex_shrink="0" interactable="0">
         <rectangle id="shelf_actions" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
           <label text="QUICK ACTIONS" size="18" color="#A9B6C1" />
@@ -173,10 +173,11 @@
         <div width="100%" align_items="center" justify_content="space_between">
           <div id="clock_root"><Clock /></div>
           <div gap="6">
-            <Button id="btn_shelf_panels" macro="button_style" width="54" height="54" tooltip_str="Panels / sets"><sprite id="btn_shelf_panels_icon" src_builtin="@/watch/shelf-panels.svg" width="24" height="24" color="#E9EEF2" /></Button>
-            <Button id="btn_layouts" macro="button_style" width="54" height="54" tooltip_str="Saved layouts"><sprite id="btn_layouts_icon" src_builtin="@/watch/shelf-layouts.svg" width="24" height="24" color="#E9EEF2" /></Button>
-            <Button id="btn_performance" macro="button_style" width="54" height="54" tooltip_str="PC performance"><sprite id="btn_performance_icon" src_builtin="@/watch/shelf-stats.svg" width="24" height="24" color="#E9EEF2" /></Button>
-            <Button id="btn_shelf_actions" macro="button_style" width="54" height="54" tooltip_str="Quick actions / settings"><sprite id="btn_shelf_actions_icon" src_builtin="@/watch/shelf-actions.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_shelf_panels" macro="button_style" width="48" height="54" tooltip_str="Panels / sets"><sprite id="btn_shelf_panels_icon" src_builtin="@/watch/shelf-panels.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_layouts" macro="button_style" width="48" height="54" tooltip_str="Saved layouts"><sprite id="btn_layouts_icon" src_builtin="@/watch/shelf-layouts.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_performance" macro="button_style" width="48" height="54" tooltip_str="PC performance"><sprite id="btn_performance_icon" src_builtin="@/watch/shelf-stats.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_media" macro="button_style" width="48" height="54" tooltip_str="Show / hide media controls"><sprite id="btn_media_icon" src_builtin="@/watch/media.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_shelf_actions" macro="button_style" width="48" height="54" tooltip_str="Quick actions / settings"><sprite id="btn_shelf_actions_icon" src_builtin="@/watch/shelf-actions.svg" width="24" height="24" color="#E9EEF2" /></Button>
           </div>
         </div>
         <div width="100%" gap="8">
@@ -189,7 +190,26 @@
           <label id="runtime_name" text="OpenXR" size="16" color="#E9EEF2" />
         </rectangle>
       </rectangle>
-      <div id="battery_slot" width="520" height="224" flex_shrink="0" interactable="0" justify_content="center" align_items="flex_start">
+      <div id="battery_slot" width="520" height="304" flex_shrink="0" interactable="0" flex_direction="column" gap="8" align_items="center">
+        <rectangle id="media_strip" macro="decorative_rect" display="none" width="520" height="72" flex_shrink="0" padding="10" round="20" gap="8" align_items="center">
+          <Button id="media_player" macro="button_style" width="48" height="48" padding="0" tooltip_str="Switch media player">
+            <sprite id="media_art_fallback" src_builtin="@/watch/media.svg" width="28" height="28" color="#A9B6C1" />
+            <image id="media_art" width="48" height="48" round="8" position="absolute" />
+          </Button>
+          <div width="278" height="48" overflow="clip" flex_shrink="0" flex_direction="column" justify_content="center" gap="2">
+            <label id="media_title" wrap="0" text="No media player" size="18" weight="bold" color="#E9EEF2" />
+            <div width="278" height="16" justify_content="space_between" align_items="center">
+              <div width="154" overflow="clip"><label id="media_artist" wrap="0" text="Start a media player" size="14" color="#A9B6C1" /></div>
+              <label id="media_time" text="— / —" width="116" wrap="0" size="11" color="#A9B6C1" />
+            </div>
+            <rectangle id="media_progress" width="278" height="4" flex_shrink="0" color="#39434C" round="2" interactable="0"><rectangle id="media_progress_fill" width="0" height="4" color="#A0BBCF" round="2" interactable="0" /></rectangle>
+          </div>
+          <div gap="2" align_items="center">
+            <Button id="media_previous" macro="button_style" width="44" height="48" padding="4" tooltip_str="Previous track"><sprite id="media_previous_icon" src_builtin="@/watch/media-previous.svg" width="22" height="22" color="#E9EEF2" /></Button>
+            <Button id="media_play" macro="button_style" width="44" height="48" padding="4" tooltip_str="Play / pause"><sprite id="media_play_icon" src_builtin="@/watch/media-play.svg" width="22" height="22" color="#E9EEF2" /><sprite id="media_pause_icon" src_builtin="@/watch/media-pause.svg" width="22" height="22" color="#E9EEF2" display="none" /></Button>
+            <Button id="media_next" macro="button_style" width="44" height="48" padding="4" tooltip_str="Next track"><sprite id="media_next_icon" src_builtin="@/watch/media-next.svg" width="22" height="22" color="#E9EEF2" /></Button>
+          </div>
+        </rectangle>
         <rectangle id="battery_strip" macro="decorative_rect" display="none" round="20" padding="6" max_width="520">
           <div id="devices_root" interactable="0" gap="4" max_width="504" flex_direction="row" flex_wrap="wrap" justify_content="center" />
         </rectangle>

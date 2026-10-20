@@ -592,7 +592,7 @@ mod tests {
                 );
                 assert!(list_size.x <= picker_size.x + 2.);
             }
-            assert_eq!(layout.content_size, glam::vec2(584., 800.));
+            assert_eq!(layout.content_size, glam::vec2(584., 880.));
             assert_eq!(
                 center(&layout, parser.get_widget_id("watch_base").unwrap()),
                 base

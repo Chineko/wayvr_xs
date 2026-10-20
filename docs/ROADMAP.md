@@ -7,7 +7,10 @@ and layout persistence across closing/updating/reopening are headset-confirmed.
 Compact interactive-panel controls and the wrist PC performance dropdown are
 headset-confirmed. The latest combined build is reported working, including
 layouts and restarting. The Floating shelf wrist base is headset-confirmed. The integrated PC performance shelf and charcoal theme are headset-confirmed.
-The embedded layout manager and Hide / Restore workspace button await headset acceptance.
+The user confirmed Hide / Restore, text/scrolling and backup/recovery, followed
+by the upstream integration build working correctly. All six CI checks pass for
+the upstream test PR #2. The compact wrist media controls, progress bar and elapsed/total time are
+headset-confirmed with Spotify and YouTube and ready for the 0.1.1 update; see `WRIST-MEDIA.md`.
 
 ## Floating shelf wrist design
 

@@ -184,6 +184,7 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
     )?;
 
     bind_shelf_buttons(&panel.parser_state)?;
+    super::media::bind_toggle(&panel.parser_state)?;
     panel.state.layouts = Some(super::layout_presets::attach(&mut panel));
     if panel.parser_state.get_widget_id("shelf_slot").is_ok() {
         panel.hit_regions = [
@@ -193,6 +194,7 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             "shelf_performance",
             "shelf_layouts",
             "battery_strip",
+            "media_strip",
         ]
         .map(|id| panel.parser_state.get_widget_id(id))
         .into_iter()
@@ -217,6 +219,7 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             );
         }
     }
+    super::media::attach(&mut panel)?;
     sets_or_overlays(&mut panel, app);
 
     let doc_params = ParseDocumentParams {
@@ -498,6 +501,7 @@ mod tests {
             let (mut layout, mut parser) =
                 wgui::parser::new_layout_from_assets(&params, Default::default()).unwrap();
             bind_shelf_buttons(&parser).unwrap();
+            super::super::media::bind_toggle(&parser).unwrap();
             update(&mut layout);
             let extent = layout.content_size;
             let base = bounds(&layout, parser.get_widget_id("watch_base").unwrap());
@@ -507,9 +511,82 @@ mod tests {
                 "shelf_panels",
                 "shelf_performance",
                 "battery_strip",
+                "media_strip",
             ]
             .map(|id| parser.get_widget_id(id).unwrap());
-            assert_eq!(extent, glam::vec2(584., 800.));
+            assert_eq!(extent, glam::vec2(584., 880.));
+            let media = parser.get_widget_id("media_strip").unwrap();
+            assert_eq!(bounds(&layout, media).1, glam::Vec2::ZERO);
+            click(&mut layout, &parser, "btn_media");
+            assert_eq!(bounds(&layout, media).1, glam::vec2(520., 72.));
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                base
+            );
+            for name in ["media_player", "media_previous", "media_play", "media_next"] {
+                let button = parser
+                    .fetch_component_as::<ComponentButton>(name)
+                    .unwrap()
+                    .base()
+                    .get_id();
+                let (pos, size) = bounds(&layout, button);
+                let (origin, extent) = bounds(&layout, media);
+                assert!(size.x >= 44. && size.y >= 48., "{name}: {size:?}");
+                assert!(
+                    pos.x >= origin.x && pos.x + size.x <= origin.x + extent.x + 0.1,
+                    "{name}: {pos:?}"
+                );
+                let calls = Rc::new(Cell::new(0));
+                let clicked = calls.clone();
+                parser
+                    .fetch_component_as::<ComponentButton>(name)
+                    .unwrap()
+                    .on_click(Rc::new(move |_, _| {
+                        clicked.set(clicked.get() + 1);
+                        Ok(())
+                    }));
+                click(&mut layout, &parser, name);
+                assert_eq!(calls.get(), 1, "{name} pointer hit");
+            }
+            let progress = parser.get_widget_id("media_progress").unwrap();
+            let fill = parser.get_widget_id("media_progress_fill").unwrap();
+            let time = parser.get_widget_id("media_time").unwrap();
+            for width in [0., 139., 278.] {
+                let mut common = layout.common();
+                common.alterables.set_style(
+                    fill,
+                    wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::length(width)),
+                );
+                if let Some(mut label) = common
+                    .state
+                    .widgets
+                    .get_as::<wgui::widget::label::WidgetLabel>(time)
+                {
+                    label.set_text(
+                        &mut common,
+                        wgui::i18n::Translation::from_raw_text("1:01:01 / 2:02:02"),
+                    );
+                }
+                update(&mut layout);
+                let (pos, extent) = bounds(&layout, progress);
+                let (fill_pos, fill_extent) = bounds(&layout, fill);
+                assert_eq!(extent, glam::vec2(278., 4.));
+                assert_eq!(fill_extent.x, width);
+                assert!(fill_pos.x + fill_extent.x <= pos.x + extent.x + 0.1);
+                let (time_pos, time_size) = bounds(&layout, time);
+                assert!(time_pos.x + time_size.x <= pos.x + extent.x + 0.1);
+                assert_eq!(bounds(&layout, media).1, glam::vec2(520., 72.));
+                assert_eq!(
+                    bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                    base
+                );
+            }
+            click(&mut layout, &parser, "btn_media");
+            assert_eq!(bounds(&layout, media).1, glam::Vec2::ZERO);
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                base
+            );
             // Reserved transparent space must not intercept another overlay's pointer.
             for pos in [glam::vec2(280., 100.), glam::vec2(280., 600.)] {
                 layout
@@ -616,6 +693,15 @@ mod tests {
             // The live monitor is a mutually exclusive shelf on this same canvas.
             click(&mut layout, &parser, "btn_performance");
             let performance = parser.get_widget_id("shelf_performance").unwrap();
+            let before = bounds(&layout, performance);
+            click(&mut layout, &parser, "btn_media");
+            assert_eq!(bounds(&layout, performance), before);
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                base
+            );
+            click(&mut layout, &parser, "btn_media");
+            assert_eq!(bounds(&layout, performance), before);
             let (top, size) = bounds(&layout, performance);
             assert_eq!(size, glam::vec2(520., 320.));
             assert!(top.y + size.y <= base.0.y);
@@ -730,7 +816,17 @@ mod tests {
                 pos.x >= 32. && pos.x + size.x <= 552.,
                 "Battery width: {pos:?} {size:?}"
             );
-            assert!(pos.y + size.y <= 800., "Battery height: {pos:?} {size:?}");
+            assert!(pos.y + size.y <= 880., "Battery height: {pos:?} {size:?}");
+            click(&mut layout, &parser, "btn_media");
+            let (pos, size) = bounds(&layout, parser.get_widget_id("battery_strip").unwrap());
+            assert!(
+                pos.y + size.y <= 880.,
+                "Media plus battery strip: {pos:?} {size:?}"
+            );
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                base
+            );
             assert_eq!(
                 bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
                 base

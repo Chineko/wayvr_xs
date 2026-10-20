@@ -30,6 +30,8 @@ anyhow.workspace = true
 chrono = { workspace = true, features = ["unstable-locales"] }
 clap.workspace = true
 dbus.workspace = true
+ureq = "3.3.0"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 glam = { workspace = true, features = ["mint", "serde"] }
 idmap = { workspace = true, features = ["serde"] }
 idmap-derive.workspace = true

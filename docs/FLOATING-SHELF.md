@@ -1,6 +1,6 @@
 # Floating shelf wrist UI
 
-The clock, session timer, status strip and four controls stay on a compact wrist base. The horizontal icon row opens panels/sets, saved layouts, PC performance and
+The clock, session timer, status strip and five controls stay on a compact wrist base. The horizontal icon row opens panels/sets, saved layouts, PC performance and
 quick actions/settings. Selecting the same shelf button closes it; selecting
 another switches shelves. Layouts opens the preset manager inside the same wrist shelf. Its selector opens an anchored dropdown directly beneath the field, retaining
 the surrounding controls and listing three presets per page, the name field opens a compact in-VR keyboard, and Save
@@ -50,3 +50,7 @@ shows **Hide overlays** normally and **Restore overlays** with a highlighted
 state while the workspace is hidden. The wrist remains accessible. Restoration
 uses `restore_set`, retains the stored transforms and does not recenter. Global
 overlays retain the existing ShowHide behavior.
+
+The music-note button independently shows/hides the compact media strip beneath
+the base. It shares the existing theme and keeps the selected shelf stationary.
+See `WRIST-MEDIA.md` for MPRIS controls and the combined headset check.
