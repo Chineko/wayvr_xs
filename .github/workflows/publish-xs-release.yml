@@ -1,0 +1,65 @@
+name: Publish verified WayVR XS release
+
+on:
+  push:
+    branches: [release/xs-v0.1.0]
+    paths:
+      - .github/workflows/publish-xs-release.yml
+      - docs/RELEASE-NOTES-XS-0.1.0.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-xs-v0.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'Chineko/wayvr_xs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_COMMIT: 0aa067629ef87bcc298b5eb8c691bd37c8fc7ee3
+      SOURCE_RUN: '39491924128'
+      RELEASE_TAG: xs-v0.1.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify successful source build
+        run: |
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > run.json
+          python3 - <<'PY'
+          import json, os
+          with open('run.json') as file:
+              run = json.load(file)
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == os.environ['SOURCE_COMMIT']
+          assert run['head_branch'] == 'feat/xs-ultrawide-panels'
+          assert run['path'] == '.github/workflows/build-arch.yml'
+          PY
+      - name: Download and verify tested package
+        run: |
+          gh run download "$SOURCE_RUN" --name wayvr-xs-arch-x86_64 --dir package
+          cd package
+          test "$(cat SOURCE-COMMIT.txt)" = "$SOURCE_COMMIT"
+          sha256sum -c SHA256SUMS
+          test -f wayvr-xs-git-26.8.0.r1720.g0aa06762-1-x86_64.pkg.tar.zst
+      - name: Publish versioned snapshot
+        run: |
+          # Fail if a release already exists; never overwrite an existing version.
+          # xs-v tags deliberately avoid the upstream v** AppImage workflow.
+          gh release create "$RELEASE_TAG" \
+            --target "$SOURCE_COMMIT" --draft \
+            --title 'WayVR XS 0.1.0' \
+            --notes-file docs/RELEASE-NOTES-XS-0.1.0.md
+          gh release upload "$RELEASE_TAG" \
+            package/wayvr-xs-git-26.8.0.r1720.g0aa06762-1-x86_64.pkg.tar.zst \
+            package/SHA256SUMS package/SOURCE-COMMIT.txt
+          gh release edit "$RELEASE_TAG" --draft=false --latest
