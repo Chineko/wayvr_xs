@@ -3,6 +3,8 @@ name: Build Arch package
 on:
   push:
     branches: [feat/xs-ultrawide-panels]
+  pull_request:
+    branches: [feat/xs-ultrawide-panels]
   workflow_dispatch:
 
 permissions:
