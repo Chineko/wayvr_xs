@@ -2,8 +2,8 @@
 
 The clock, session timer, status strip and four controls stay on a compact wrist base. The horizontal icon row opens panels/sets, saved layouts, PC performance and
 quick actions/settings. Selecting the same shelf button closes it; selecting
-another switches shelves. Layouts opens the preset manager inside the same wrist shelf. Its selector lists
-three presets per page, the name field opens a compact in-VR keyboard, and Save
+another switches shelves. Layouts opens the preset manager inside the same wrist shelf. Its selector opens an anchored dropdown directly beneath the field, retaining
+the surrounding controls and listing three presets per page, the name field opens a compact in-VR keyboard, and Save
 creates a new preset or confirms replacement of an existing name. Rename, Delete
 and startup selection reuse the existing storage. Clicking an active startup
 choice clears it back to last-session startup. Loading still explicitly restarts

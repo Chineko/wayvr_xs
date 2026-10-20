@@ -45,6 +45,9 @@ impl Ui {
         }
     }
     fn command(&mut self, command: &str) -> Option<Action> {
+        if self.view == "list" && !matches!(command, "picker" | "previous" | "next") {
+            self.view = "main";
+        }
         let selected = self
             .library
             .presets
@@ -65,7 +68,7 @@ impl Ui {
         }
         let action = match command {
             "picker" => {
-                self.view = "list";
+                self.view = if self.view == "list" { "main" } else { "list" };
                 self.page = self.selected / PAGE;
                 None
             }
@@ -165,12 +168,19 @@ fn label(common: &mut CallbackDataCommon, parser: &impl Fetchable, id: &str, tex
 fn refresh(common: &mut CallbackDataCommon, parser: &impl Fetchable, ui: &Ui) {
     for view in ["main", "list", "keys"] {
         if let Ok(id) = parser.get_widget_id(&format!("layout_{view}")) {
-            common.alterables.set_widget_visible(id, ui.view == view);
+            common.alterables.set_widget_visible(
+                id,
+                if view == "main" {
+                    ui.view != "keys"
+                } else {
+                    ui.view == view
+                },
+            );
         }
     }
     for (id, visible) in [
         ("layout_header", ui.view != "keys"),
-        ("layout_status", ui.view != "keys"),
+        ("layout_status", ui.view == "main"),
         ("layout_letters", !ui.digits),
         ("layout_numbers", ui.digits),
     ] {
@@ -234,10 +244,18 @@ fn refresh(common: &mut CallbackDataCommon, parser: &impl Fetchable, ui: &Ui) {
             common
                 .alterables
                 .set_widget_visible(button.get_rect(), p.is_some());
+            let selected = p.is_some() && ui.page * PAGE + slot == ui.selected;
+            button.set_sticky_state(common, selected);
+            button.set_text_color(
+                common,
+                wgui::drawing::Color::from_hex(if selected { "#19232B" } else { "#E9EEF2" })
+                    .unwrap()
+                    .into(),
+            );
             button.set_text(
                 common,
                 wgui::i18n::Translation::from_raw_text(
-                    &p.map_or(String::new(), |p| display_name(&p.name, 40)),
+                    &p.map_or(String::new(), |p| display_name(&p.name, 24)),
                 ),
             );
         }
@@ -459,7 +477,26 @@ mod tests {
         refresh(&mut layout.common(), &parser, &ui);
         update(&mut layout);
         let base = center(&layout, parser.get_widget_id("watch_base").unwrap());
+        let anchors: Vec<_> = [
+            "layout_load",
+            "layout_edit_name",
+            "layout_save",
+            "layout_rename",
+            "layout_startup",
+            "layout_delete",
+        ]
+        .map(|id| {
+            let id = parser
+                .fetch_component_as::<ComponentButton>(id)
+                .unwrap()
+                .base()
+                .get_id();
+            (id, center(&layout, id))
+        })
+        .into();
         for id in [
+            "picker",
+            "picker",
             "picker",
             "next",
             "choose_1",
@@ -523,6 +560,38 @@ mod tests {
             ui.command(id);
             refresh(&mut layout.common(), &parser, &ui);
             update(&mut layout);
+            if ui.view == "list" {
+                for (widget, original) in &anchors {
+                    assert!(wgui::widget::is_node_visible(
+                        &layout.state.tree,
+                        *layout.state.nodes.get(*widget).unwrap()
+                    ));
+                    assert_eq!(
+                        center(&layout, *widget),
+                        *original,
+                        "Dropdown moved the layout controls"
+                    );
+                }
+                let picker = parser
+                    .fetch_component_as::<ComponentButton>("layout_picker")
+                    .unwrap()
+                    .base()
+                    .get_id();
+                let list = parser.get_widget_id("layout_list").unwrap();
+                let picker_size = layout.state.get_widget_size(picker);
+                let list_size = layout.state.get_widget_size(list);
+                let p = center(&layout, picker);
+                let l = center(&layout, list);
+                assert!(
+                    (l.x - list_size.x * 0.5 - (p.x - picker_size.x * 0.5)).abs() < 2.,
+                    "Dropdown must align with selector"
+                );
+                assert!(
+                    (l.y - list_size.y * 0.5 - (p.y + picker_size.y * 0.5)).abs() < 2.,
+                    "Dropdown must open directly underneath selector"
+                );
+                assert!(list_size.x <= picker_size.x + 2.);
+            }
             assert_eq!(layout.content_size, glam::vec2(584., 800.));
             assert_eq!(
                 center(&layout, parser.get_widget_id("watch_base").unwrap()),
