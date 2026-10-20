@@ -9,7 +9,7 @@ license=('GPL-3.0-only' 'LGPL-2.1-or-later')
 depends=(
   'alsa-lib' 'dav1d' 'dbus' 'fontconfig' 'gcc-libs' 'glibc' 'libinput'
   'libpipewire' 'libxkbcommon' 'openxr' 'pipewire' 'systemd-libs'
-  'vulkan-icd-loader' 'vulkan-driver' 'wayland' 'xdg-desktop-portal'
+  'vulkan-icd-loader' 'vulkan-driver' 'wayland' 'xdg-desktop-portal' 'python'
 )
 makedepends=('clang' 'cmake' 'git' 'python' 'rust' 'shaderc')
 # The GUI layout test shapes labels, including on minimal headless builders.
@@ -47,16 +47,19 @@ check() {
   cd "$srcdir/wayvr-xs" || return
   export CARGO_TARGET_DIR="$srcdir/target"
   export SHADERC_LIB_DIR=/usr/lib
+  python -m unittest discover -s tools/tests -v
   cargo test --release --frozen -p wayvr -p wlx-capture --no-default-features --features wayvr/wayland,wayvr/openxr
 }
 
 package() {
   cd "$srcdir/wayvr-xs" || return
   install -Dm755 "$srcdir/target/release/wayvr" "$pkgdir/usr/bin/wayvr-xs"
+  install -Dm755 tools/wayvr-xs-support "$pkgdir/usr/bin/wayvr-xs-support"
   install -Dm644 packaging/arch/wayvr-xs.desktop \
     "$pkgdir/usr/share/applications/wayvr-xs.desktop"
   install -Dm644 wayvr/wayvr.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg"
   install -Dm644 docs/XS-ULTRAWIDE.md "$pkgdir/usr/share/doc/wayvr-xs/XS-ULTRAWIDE.md"
+  install -Dm644 docs/PERFORMANCE.md "$pkgdir/usr/share/doc/wayvr-xs/PERFORMANCE.md"
   install -Dm644 docs/ARCH-INSTALL.md "$pkgdir/usr/share/doc/wayvr-xs/ARCH-INSTALL.md"
   install -Dm644 wayvr/protocols/zkde-screencast-unstable-v1.xml "$pkgdir/usr/share/licenses/$pkgname/zkde-screencast-unstable-v1.xml"
   install -Dm644 wayvr/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

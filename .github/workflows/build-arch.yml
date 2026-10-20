@@ -73,6 +73,8 @@ jobs:
           pacman --config /tmp/wayvr-xs-pacman.conf -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
           pacman -Ql wayvr-xs-git
           /usr/bin/wayvr-xs --help
+          /usr/bin/wayvr-xs-support --help
+          /usr/bin/wayvr-xs-support doctor
           desktop-file-validate /usr/share/applications/wayvr-xs.desktop
           test -s /usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg
           test -s /usr/share/doc/wayvr-xs/ARCH-INSTALL.md

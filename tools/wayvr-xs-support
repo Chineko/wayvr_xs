@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Local backup, recovery and diagnostics for WayVR XS. No network or sudo."""
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def config_root():
+    return Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'wayvr'
+
+
+def running():
+    # Check every same-user process, including renamed development binaries.
+    for proc in Path('/proc').glob('[0-9]*'):
+        try:
+            if proc.name == str(os.getpid()):
+                continue
+            if proc.stat().st_uid != os.getuid():
+                continue
+            name = (proc / 'comm').read_text().strip()
+            if name == 'wayvr' or name.startswith('wayvr-xs'):
+                return True
+        except (OSError, UnicodeError):
+            pass
+    return False
+
+
+def require_stopped():
+    if running():
+        raise ValueError('Close WayVR first so saved layouts/settings are consistent.')
+
+
+def outside(path, root):
+    if path.resolve().is_relative_to(root.resolve()):
+        raise ValueError('Destination/source must be outside the live WayVR config directory.')
+
+
+def private_dir(parent, prefix):
+    parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=parent))
+
+
+def backup(destination):
+    require_stopped()
+    root = config_root()
+    outside(destination, root)
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError(f'Expected a regular config directory: {root}')
+    folder = private_dir(destination, 'wayvr-xs-backup-')
+    try:
+        # Preserve links as links, never copy their targets into the backup.
+        shutil.copytree(root, folder / 'config', symlinks=True)
+        (folder / 'backup.json').write_text(json.dumps({
+            'format': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
+        }, indent=2) + '\n')
+    except BaseException:
+        shutil.rmtree(folder)
+        raise
+    print(f'Backup saved: {folder}')
+    return folder
+
+
+def restore(source):
+    require_stopped()
+    root = config_root()
+    outside(source, root)
+    meta = json.loads((source / 'backup.json').read_text())
+    saved = source / 'config'
+    if not isinstance(meta, dict) or meta.get('format') != 1 or not saved.is_dir() or saved.is_symlink():
+        raise ValueError('Not a supported WayVR XS backup directory.')
+    if root.is_symlink() or (root.exists() and not root.is_dir()):
+        raise ValueError(f'Refusing to replace a symlink or non-directory: {root}')
+    # Stage on the same filesystem. Keep the previous workspace for rollback.
+    staging = private_dir(root.parent, '.wayvr-xs-restore-')
+    previous = None
+    try:
+        shutil.copytree(saved, staging / 'config', symlinks=True)
+        if root.exists():
+            previous = private_dir(root.parent, 'wayvr-xs-before-restore-')
+            (previous / 'backup.json').write_text(json.dumps({'format': 1}) + '\n')
+            root.rename(previous / 'config')
+        try:
+            (staging / 'config').rename(root)
+        except BaseException:
+            if previous:
+                (previous / 'config').rename(root)
+            raise
+    finally:
+        shutil.rmtree(staging)
+    print(f'Restored: {root}')
+    if previous:
+        print(f'Previous settings preserved: {previous}')
+
+
+def command(args):
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=5, check=False)
+        return (result.stdout + result.stderr).strip()
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return str(error)
+
+
+def doctor():
+    root = config_root()
+    runtime = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'openxr/1/active_runtime.json'
+    installed = command(['pacman', '-Q'])
+    packages = '\n'.join(line for line in installed.splitlines() if line.split(' ', 1)[0] in {
+        'wayvr-xs-git', 'wayvr', 'openxr', 'vulkan-icd-loader',
+        'xdg-desktop-portal', 'xdg-desktop-portal-kde',
+    } or line.startswith('wivrn'))
+    launcher = shutil.which('wayvr-xs')
+    launcher_hint = ('PATH selects a custom launcher; use /usr/bin/wayvr-xs to test the Arch package.'
+                     if launcher and launcher != '/usr/bin/wayvr-xs' else 'Arch launcher: /usr/bin/wayvr-xs')
+    return '\n'.join([
+        'WayVR XS local diagnostics (review before sharing)',
+        f'Config: {root} (exists: {root.is_dir()})',
+        f'WayVR running: {running()}',
+        f'Session: {os.environ.get("XDG_SESSION_TYPE", "unknown")}',
+        f'Desktop: {os.environ.get("XDG_CURRENT_DESKTOP", "unknown")}',
+        f'Wayland display: {os.environ.get("WAYLAND_DISPLAY", "unset")}',
+        f'OpenXR override: {os.environ.get("XR_RUNTIME_JSON", "unset")}',
+        f'User OpenXR runtime link: {runtime.resolve() if runtime.exists() else "not set (system runtime may be active)"}',
+        f'Launcher on PATH: {launcher or "not installed"}',
+        launcher_hint,
+        f'/dev/uinput writable: {os.access("/dev/uinput", os.W_OK)}',
+        'Installed Arch packages:',
+        packages or installed,
+        'Start WiVRn and connect the headset before launching wayvr-xs --openxr --show.',
+        'A missing user runtime link is not by itself an error. Check WiVRn runtime selection.',
+    ]) + '\n'
+
+
+def diagnose(destination, log_path):
+    outside(destination, config_root())
+    folder = private_dir(destination, 'wayvr-xs-diagnostics-')
+    (folder / 'report.txt').write_text(doctor())
+    # Config/layout files are deliberately excluded. Logs can contain app titles/paths.
+    if log_path.is_file():
+        with log_path.open('rb') as source, (folder / 'wayvr.log').open('wb') as target:
+            source.seek(max(0, log_path.stat().st_size - 4 * 1024 * 1024))
+            shutil.copyfileobj(source, target)
+    print(f'Diagnostics saved: {folder}\nReview logs for window titles and paths before sharing.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='action', required=True)
+    sub.add_parser('doctor', help='Print local installation/runtime checks')
+    default = Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'wayvr-xs'
+    b = sub.add_parser('backup', help='Back up settings and layouts (close WayVR first)')
+    b.add_argument('destination', type=Path, nargs='?', default=default / 'backups')
+    r = sub.add_parser('restore', help='Restore a trusted backup; preserve current settings first')
+    r.add_argument('source', type=Path)
+    d = sub.add_parser('diagnose', help='Collect local checks and up to 4 MiB of the log')
+    d.add_argument('destination', type=Path, nargs='?', default=default / 'diagnostics')
+    d.add_argument('--log', type=Path, default=Path(os.environ.get('WAYVR_LOGFILE', '/tmp/wayvr.log')))
+    args = parser.parse_args()
+    try:
+        if os.geteuid() == 0 and args.action != 'doctor':
+            raise ValueError('Run as your desktop user, without sudo.')
+        if args.action == 'doctor':
+            print(doctor(), end='')
+        elif args.action == 'backup':
+            backup(args.destination)
+        elif args.action == 'restore':
+            restore(args.source)
+        else:
+            diagnose(args.destination, args.log)
+    except (OSError, ValueError, shutil.Error) as error:
+        print(f'wayvr-xs-support: {error}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

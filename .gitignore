@@ -9,3 +9,5 @@
 .cargo
 scripts/translator/node_modules
 */Cargo.lock
+
+__pycache__/

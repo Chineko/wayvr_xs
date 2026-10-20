@@ -119,3 +119,61 @@ dialog. See [the ultrawide guide](XS-ULTRAWIDE.md) for split controls.
 If mouse/keyboard emulation reports that `/dev/uinput` is unavailable, check
 that the uinput module is loaded and that your user has device permissions.
 The package does not change your user groups or device permissions.
+
+## First launch, backups and recovery
+
+After installing, run `wayvr-xs-support doctor` as your normal desktop user.
+It prints the package/runtime selection, session, launcher and input-device
+checks without starting VR or changing settings. A missing per-user OpenXR link
+can be normal when the system runtime is selected. Start WiVRn, connect the
+headset, then launch **WayVR XS** from the application menu. Grant the screen
+sharing portal access to the intended monitor when asked. Keep only one WayVR
+instance/autostart entry enabled.
+
+Close WayVR before backing up, restoring, or updating. Back up before an upgrade:
+
+```sh
+wayvr-xs-support backup
+sudo pacman -Syu wayvr-xs-git
+```
+
+The command prints a unique backup directory under
+`~/.local/state/wayvr-xs/backups` (or `$XDG_STATE_HOME`). It copies all settings,
+saved layouts and custom assets from `~/.config/wayvr` (or `$XDG_CONFIG_HOME`),
+preserving symlinks as links. Backups have private access permissions. Standard
+WayVR shares this configuration; close it too. No automatic deletion or upload
+of backups occurs. You can supply another destination directory.
+
+To restore a **trusted backup made by this tool**, close WayVR and run, replacing
+the example path with the directory printed by `backup`:
+
+```sh
+wayvr-xs-support restore "$HOME/.local/state/wayvr-xs/backups/wayvr-xs-backup-EXAMPLE"
+```
+
+The restored files are staged before replacement. Your current configuration is
+kept in a separate `wayvr-xs-before-restore-*` backup next to the config directory;
+its printed path can itself be restored to undo the change. Run these commands
+without sudo. Do not restore while WayVR is running. Backups preserve symlinks,
+so external files pointed to by custom links are not backed up.
+
+For troubleshooting, collect a local report and the tail of the existing log:
+
+```sh
+wayvr-xs-support diagnose
+# If you started with a custom --log-to path:
+wayvr-xs-support diagnose --log "$HOME/wayvr-xs-performance.log"
+```
+
+This creates a private directory containing checks and up to 4 MiB of the log.
+It excludes configuration/layout files and never uploads anything. Review logs
+for window titles, usernames and paths before sharing. The default log is
+`/tmp/wayvr.log` (or `$WAYVR_LOGFILE`); collect it **before relaunching**, because
+WayVR replaces it at startup. See `PERFORMANCE.md` for repeatable capture/clarity
+checks and optional capture statistics.
+
+If a new package fails, keep the report and backup. Restore the last working
+cached package with `sudo pacman -U /var/cache/pacman/pkg/<exact-old-package-file>`
+as a temporary recovery step, then close/reopen WayVR. Do not use `pacman -Sy`
+as a general update command; use the full `-Syu` upgrade above. A config restore
+and a package rollback are independent operations.

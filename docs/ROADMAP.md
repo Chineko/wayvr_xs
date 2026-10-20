@@ -23,13 +23,19 @@ not requirements. This UI batch does not change the three priorities below.
 1. **Quick controls for regular screen panels:** implemented for mono desktop
    screens and split regions using the shared actions. Await combined headset
    acceptance with the anchored layout dropdown correction.
-2. **Readability and performance:** measure text clarity, capture latency and GPU
-   cost; improve idle and hidden-panel behavior based on those measurements.
-3. **Installation and recovery:** first-run guidance, configuration backups and
-   restoration, update information and troubleshooting logs.
+2. **Readability and performance:** native capture resolution and shared/hidden
+   capture behavior retained; redundant texture rebinding removed; opt-in capture
+   delivery/CPU import statistics and a repeatable headset comparison added in
+   `PERFORMANCE.md`. Real text clarity, end-to-end latency and GPU savings still
+   require headset measurements; these are not claimed verified.
+3. **Installation and recovery:** implemented `wayvr-xs-support` doctor, private
+   backups, staged restore with previous-settings preservation, and local
+   diagnostic/log collection. Arch packaging installs the helper and guidance;
+   recovery round-trip and failure rollback have automated tests.
 
-These are the next implementation targets. Continue checking the features already
-implemented and fixing reported bugs alongside these batches.
+Implementation for this batch is ready for combined headset acceptance. Continue
+checking existing features and fixing reported bugs; use measured results before
+more aggressive capture changes.
 
 ## Later updates
 
