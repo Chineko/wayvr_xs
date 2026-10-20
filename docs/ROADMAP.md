@@ -20,8 +20,9 @@ not requirements. This UI batch does not change the three priorities below.
 
 ## Next three priorities
 
-1. **Quick controls for regular screen panels:** bring the compact controls drawer
-   to regular screen panels, reusing existing edit controls and shared actions.
+1. **Quick controls for regular screen panels:** implemented for mono desktop
+   screens and split regions using the shared actions. Await combined headset
+   acceptance with the anchored layout dropdown correction.
 2. **Readability and performance:** measure text clarity, capture latency and GPU
    cost; improve idle and hidden-panel behavior based on those measurements.
 3. **Installation and recovery:** first-run guidance, configuration backups and

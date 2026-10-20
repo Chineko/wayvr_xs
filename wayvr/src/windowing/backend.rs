@@ -159,6 +159,11 @@ pub enum OverlayEventData {
 }
 
 pub trait OverlayBackend: Any {
+    /// Native capture extent, excluding presentation controls.
+    fn screen_content_extent(&mut self) -> Option<[u32; 2]> {
+        self.frame_meta().map(|meta| meta.extent)
+    }
+
     /// Physical screen identity; absent on mirrors and other non-desktop backends.
     fn screen_source(&self) -> Option<Arc<str>> {
         None

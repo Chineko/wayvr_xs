@@ -655,8 +655,8 @@ impl<T> OverlayWindowManager<T> {
             let source_config = &mut self.overlays[source_id].config;
             let full_aspect = source_config
                 .backend
-                .frame_meta()
-                .map(|m| m.extent[0] as f32 / m.extent[1].max(1) as f32)
+                .screen_content_extent()
+                .map(|extent| extent[0] as f32 / extent[1].max(1) as f32)
                 .unwrap_or(32.0 / 9.0);
             let head = snap_upright(app.input_state.hmd, Vec3A::Y);
             let total_width = 2.5 * app.session.config.default_overlay_scale;

@@ -190,6 +190,10 @@ impl EditModeBackendWrapper {
 }
 
 impl OverlayBackend for EditModeBackendWrapper {
+    fn screen_content_extent(&mut self) -> Option<[u32; 2]> {
+        self.inner.screen_content_extent()
+    }
+
     fn init(&mut self, app: &mut crate::state::AppState) -> anyhow::Result<()> {
         self.inner.init(app)?;
         self.panel.init(app)

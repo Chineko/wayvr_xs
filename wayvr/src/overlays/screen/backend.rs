@@ -652,6 +652,38 @@ mod tests {
     }
 
     #[test]
+    fn controls_preserve_native_capture_extent_and_shared_split_identity() {
+        let mut source = ScreenBackend::new_raw(
+            "DP-1".into(),
+            XrBackend::OpenXR,
+            CaptureType::PipeWire,
+            Box::new(MockCapture {
+                pauses: Rc::new(Cell::new(0)),
+                resumes: Rc::new(Cell::new(0)),
+            }),
+        );
+        source.meta = Some(FrameMeta {
+            extent: [5120, 1440],
+            ..Default::default()
+        });
+        let mut wrapped = super::super::controls::ScreenControls::new(Box::new(source));
+        assert_eq!(wrapped.screen_content_extent(), Some([5120, 1440]));
+        assert_eq!(wrapped.screen_source().as_deref(), Some("DP-1"));
+        let region = wrapped
+            .screen_region(ScreenRegion {
+                start: 1,
+                end: 2,
+                total: 2,
+            })
+            .unwrap();
+        assert_eq!(region.screen_source().as_deref(), Some("DP-1"));
+        assert!(matches!(
+            wrapped.get_attrib(BackendAttrib::Stereo),
+            Some(BackendAttribValue::Stereo(StereoMode::None))
+        ));
+    }
+
+    #[test]
     fn region_input_respects_desktop_scaling_and_negative_monitor_origin() {
         let mut source = ScreenBackend::new_raw(
             "DP-1".into(),

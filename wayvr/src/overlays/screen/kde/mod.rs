@@ -1,7 +1,6 @@
 //! Opt-in KWin window capture with compositor-validated desktop input.
-mod geometry;
 mod worker;
-use geometry::PanelGeometry;
+use super::geometry::PanelGeometry;
 
 use super::{
     backend::{CaptureType, ScreenBackend, pointer_button},
