@@ -5,9 +5,18 @@
 Independent movement, interactive app selection/switching, dropdown alignment,
 and layout persistence across closing/updating/reopening are headset-confirmed.
 Compact interactive-panel controls and the wrist PC performance dropdown are
-headset-confirmed. The compact bar-dashboard redesign awaits headset checking.
-The layout manager now responds; the load/restart correction awaits testing;
-app reconnection polish still awaits headset acceptance.
+headset-confirmed. The latest combined build is reported working, including
+layouts and restarting. The new Floating shelf wrist redesign awaits its own
+headset acceptance.
+
+## Floating shelf wrist design
+
+The chosen compact design uses an expandable action shelf above a stationary
+clock/control base, with a compact device battery strip below. Keep existing
+actions, layout presets, performance monitoring, panel/set toggles and runtime
+battery sources. Show percentages, charging marks and low-battery states only
+for devices reporting battery data. Use the current theme; reference colors are
+not requirements. This UI batch does not change the three priorities below.
 
 ## Next three priorities
 
@@ -23,6 +32,7 @@ implemented and fixing reported bugs alongside these batches.
 
 ## Later updates
 
+- Skins and appearance customization after the compact layout is established.
 - Placement tools: alignment, matching sizes, edge snapping, curved rows and undo
   for accidental moves.
 - Expanded wrist actions and layout switching, plus configurable controller

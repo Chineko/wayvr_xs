@@ -52,7 +52,7 @@ pub(super) fn setup_custom_label<S: 'static>(
     };
 
     let callback: EventCallback<AppState, S> = match source {
-        "battery" => {
+        "battery" | "battery_charging" => {
             let Some(device) = attribs.get_value("_device") else {
                 log_missing_attrib(parser_state, TAG, "_device");
                 return;
@@ -64,6 +64,7 @@ pub(super) fn setup_custom_label<S: 'static>(
             };
 
             let state = BatteryLabelState {
+                charging_only: source == "battery_charging",
                 low_color: parse_color(attribs, "_low_color", &layout.state.globals, BAT_LOW),
                 normal_color: parse_color(
                     attribs,
@@ -202,11 +203,22 @@ const BAT_CHARGING: drawing::Color = drawing::Color::new(0.38, 0.50, 0.62, 1.);
 const BAT_LOW_THRESHOLD: u32 = 30;
 
 struct BatteryLabelState {
+    charging_only: bool,
     device: usize,
     low_color: WguiColor,
     normal_color: WguiColor,
     charging_color: WguiColor,
     low_threshold: u32,
+}
+
+fn battery_text(soc: f32, charging: bool, charging_only: bool) -> String {
+    if !soc.is_finite() {
+        return String::new();
+    }
+    if charging_only {
+        return if charging { "ϟ".into() } else { String::new() };
+    }
+    format!("{:.0}%", (soc * 100.).clamp(0., 100.))
 }
 
 fn battery_on_tick(
@@ -219,15 +231,12 @@ fn battery_on_tick(
     let label = data.obj.get_as_mut::<WidgetLabel>().unwrap();
 
     if let Some(device) = device
-        && let Some(soc) = device.soc
+        && let Some(soc) = device.soc.filter(|soc| soc.is_finite())
     {
-        let soc = (soc * 100.).min(99.) as u32;
-        let num_devices = app.input_state.devices.len();
-        let suffix = if num_devices > 3 { "" } else { "%" };
-        let text = format!("{soc}{suffix}");
+        let text = battery_text(soc, device.charging, state.charging_only);
         let color = if device.charging {
             state.charging_color
-        } else if soc < state.low_threshold {
+        } else if soc * 100. < state.low_threshold as f32 {
             state.low_color
         } else {
             state.normal_color
@@ -303,4 +312,21 @@ fn ipd_on_tick(
     let text = app.input_state.ipd.to_string();
     let label = data.obj.get_as_mut::<WidgetLabel>().unwrap();
     label.set_text(common, Translation::from_raw_text(&text));
+}
+
+#[cfg(test)]
+mod battery_tests {
+    use super::battery_text;
+
+    #[test]
+    fn percentage_and_charging_indicators_handle_runtime_values() {
+        assert_eq!(battery_text(1., false, false), "100%");
+        assert_eq!(battery_text(0.47, false, false), "47%");
+        assert_eq!(battery_text(-0.1, false, false), "0%");
+        assert_eq!(battery_text(1.1, false, false), "100%");
+        assert_eq!(battery_text(1., true, true), "ϟ");
+        assert_eq!(battery_text(1., false, true), "");
+        assert_eq!(battery_text(f32::NAN, true, false), "");
+        assert_eq!(battery_text(f32::INFINITY, true, true), "");
+    }
 }

@@ -1,9 +1,9 @@
 <layout version="2">
   <vars>
-    <var key="clock0_size" value="46" />
+    <var key="clock0_size" value="44" />
     <var key="clock0_date_size" value="16" />
     <var key="clock0_dow_size" value="16" />
-    <var key="clock_alt_size" value="24" />
+    <var key="clock_alt_size" value="18" />
     <var key="clock_alt_tz_size" value="14" />
   </vars>
 
@@ -14,10 +14,13 @@
   <macro name="button_style" padding="8" border="2" round="8" align_items="center" justify_content="center" />
 
   <template name="Device">
-    <rectangle macro="decorative_rect" padding_top="4" padding_bottom="4" align_items="center" gap="8">
-      <sprite width="32" height="32" src_builtin="${src}" color="on_background" />
-      <label _source="battery" _device="${idx}" size="24" weight="bold" _low_color="danger" _normal_color="primary" _charging_color="tertiary" />
-    </rectangle>
+    <div width="62" height="66" flex_shrink="0" flex_direction="column" align_items="center" justify_content="center" gap="2">
+      <div align_items="center" justify_content="center" height="30">
+        <label _source="battery_charging" _device="${idx}" width="16" size="22" color="tertiary" _charging_color="tertiary" />
+        <sprite width="28" height="28" src_builtin="${src}" color="on_background" />
+      </div>
+      <label _source="battery" _device="${idx}" size="21" weight="bold" _low_color="danger" _normal_color="primary" _charging_color="tertiary" />
+    </div>
   </template>
 
   <template name="Hmd">
@@ -78,107 +81,65 @@
   </template>
 
   <template name="Clock">
-    <div gap="12" flex_direction="column" padding="4">
-      <div flex_direction="column" >
-        <label text="11:22 PM" _source="clock" _display="time" color="on_background" size="~clock0_size" weight="bold" align="center" />
-        <div padding_left="2" gap="16" flex_direction="row" justify_content="center">
-          <label text="Tue" _source="clock" _display="dow_short" color="on_background_variant" size="~clock0_dow_size" weight="bold" />
-          <label text="22/2/2022" _source="clock" _display="date" color="on_background_variant" size="~clock0_date_size" weight="bold" />
-        </div>
-      </div>
-      <div flex_direction="row" gap="8" justify_content="space_around">
-        <!-- Timezone names here are only placeholders. Set your timezones via ~/.config/wayvr/conf.d -->
-        <div flex_direction="column">
-          <label text="Paris" _source="clock" _display="name" _timezone="0" color="secondary" size="~clock_alt_tz_size" weight="bold" align="center" />
-          <label text="23:59" _source="clock" _display="time" _timezone="0" color="secondary" size="~clock_alt_size" weight="bold" align="center" />
-        </div>
-        <div flex_direction="column">
-          <label text="New York" _source="clock" _display="name" _timezone="1" color="tertiary" size="~clock_alt_tz_size" weight="bold" align="center" />
-          <label text="23:59" _source="clock" _display="time" _timezone="1" color="tertiary" size="~clock_alt_size" weight="bold" align="center" />
-        </div>
+    <div gap="3" flex_direction="column" padding="4">
+      <label text="WAYVR XS" color="on_background_variant" size="15" />
+      <label text="11:22 PM" _source="clock" _display="time" color="on_background" size="~clock0_size" weight="bold" />
+      <div gap="8">
+        <label text="Tue" _source="clock" _display="dow_short" color="on_background_variant" size="~clock0_dow_size" />
+        <label text="22/2/2022" _source="clock" _display="date" color="on_background_variant" size="~clock0_date_size" />
       </div>
     </div>
   </template>
 
-  <template name="VerticalSeparator">
-    <rectangle width="2" height="100%" color="outline" />
+  <template name="Timezones">
+          <div gap="16" justify_content="center" width="100%">
+            <div gap="6"><label _source="clock" _display="name" _timezone="0" size="16" color="secondary" /><label _source="clock" _display="time" _timezone="0" size="18" color="secondary" /></div>
+            <div gap="6"><label _source="clock" _display="name" _timezone="1" size="16" color="tertiary" /><label _source="clock" _display="time" _timezone="1" size="18" color="tertiary" /></div>
+          </div>
   </template>
 
   <elements>
-    <!-- padding="32" is required there (to make room for tooltips) -->
-    <div
-      padding="32" interactable="0"
-      flex_direction="column" gap="8">
-      <!-- Top elements (device battery levels) -->
-      <div id="devices_root" interactable="0" gap="6" width="100%" max_width="400" flex_direction="row" flex_wrap="wrap">
-        <!-- Will populate tags at runtime -->
-        <!-- These are examples for uidev -->
-        <Hmd idx="0" />
-        <LeftHand idx="1" />
-        <RightHand idx="2" />
-        <Tracker idx="3" />
-      </div>
-
-      <!-- All other elements inside the container -->
-      <div flex_direction="column" gap="8" min_width="300">
-        <rectangle macro="decorative_rect" flex_direction="row" gap="8" justify_content="space_evenly">
-          <!-- Clock, date and various timezones -->
-          <div id="clock_root">
-            <Clock />
+    <!-- Fixed canvas reserves shelf, tooltip and battery space so the base never jumps. -->
+    <div id="watch_canvas" width="584" height="720" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
+      <div id="shelf_slot" width="520" height="256" flex_shrink="0" interactable="0">
+        <rectangle id="shelf_actions" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
+          <label text="QUICK ACTIONS" size="18" color="on_background_variant" />
+          <div gap="8" justify_content="space_between" width="100%">
+            <Button id="btn_keyboard" macro="button_style" width="82" height="64" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD"><sprite src_builtin="@/watch/keyboard.svg" width="32" height="32" /></Button>
+            <Button id="btn_edit_mode" macro="button_style" width="82" height="64" _press="::EditToggle" tooltip="WATCH.EDIT_MODE"><sprite src_builtin="@/watch/edit.svg" width="32" height="32" /></Button>
+            <Button id="btn_recenter" macro="button_style" width="82" height="64" _press="::PlayspaceRecenter" tooltip="WATCH.RECENTER"><sprite src_builtin="@/watch/recenter.svg" width="32" height="32" /></Button>
+            <Button id="btn_floor" macro="button_style" width="82" height="64" _press="::PlayspaceFixFloor" tooltip="WATCH.FIX_FLOOR"><sprite src_builtin="@/watch/fix-floor.svg" width="32" height="32" /></Button>
+            <Button id="btn_dashboard" macro="button_style" width="82" height="64" _press="::DashToggle" tooltip="WATCH.DASHBOARD"><sprite src_builtin="@/watch/wayvr_dashboard_mono.svg" width="32" height="32" /></Button>
           </div>
-
-          <!-- Four buttons -->
-          <div flex_direction="column" gap="8">
-            <div gap="8">
-              <Button id="btn_keyboard" macro="button_style" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD" tooltip_side="left">
-                <sprite src_builtin="@/watch/keyboard.svg" width="40" height="40" />
-              </Button>
-              <Button id="btn_edit_mode" macro="button_style" _press="::EditToggle" tooltip="WATCH.EDIT_MODE" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/edit.svg" />
-              </Button>
-            </div>
-            <div gap="8">
-              <Button macro="button_style" _press="::PlayspaceRecenter" tooltip="WATCH.RECENTER" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/recenter.svg" />
-              </Button>
-              <Button macro="button_style" _press="::PlayspaceFixFloor" tooltip="WATCH.FIX_FLOOR" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/fix-floor.svg" />
-              </Button>
-            </div>
+          <div gap="8" width="100%">
+            <Button id="btn_add_capture" macro="button_style" flex_grow="1" height="52" _press="::NewAppWindow" tooltip="BAR.ADD_APP_WINDOW" skip="~not_window_capture"><sprite width="26" height="26" src_builtin="@/edit/mirror.svg" /><label text="+ App" size="21" /></Button>
+            <Button id="btn_add_interactive" macro="button_style" flex_grow="1" height="52" _press="::NewInteractiveWindow" tooltip="BAR.ADD_INTERACTIVE_WINDOW" skip="~not_kde"><sprite width="26" height="26" src_builtin="@/edit/normal.svg" /><label text="+ Interactive" size="21" /></Button>
           </div>
+          <div id="timezones_root"><Timezones /></div>
         </rectangle>
-
-        <!-- Bottom buttons -->
-        <div flex_direction="row" gap="8">
-          <div gap="4">
-            <Button id="btn_dashboard" macro="button_style" _press="::DashToggle" tooltip="WATCH.DASHBOARD" tooltip_side="top">
-              <sprite width="40" height="40" src="@/watch/wayvr_dashboard_mono.svg" />
-            </Button>
+        <rectangle id="shelf_panels" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
+          <label text="PANELS / SETS" size="18" color="on_background_variant" />
+          <div id="sets_root" gap="6" width="100%" flex_wrap="wrap"><Set idx="0" display="1" /><Set idx="1" display="2" /></div>
+          <div id="panels_root" gap="6" width="100%" flex_wrap="wrap" display="none"><Screen idx="0" display="H1" name="HDMI-A-1" /><Screen idx="1" display="D2" name="DP-2" /></div>
+        </rectangle>
+      </div>
+      <rectangle id="watch_base" macro="decorative_rect" round="22" padding="12" width="520" height="160" flex_shrink="0" align_items="center" justify_content="space_between">
+        <div id="clock_root"><Clock /></div>
+        <div flex_direction="column" gap="6">
+          <div gap="6">
+            <Button id="btn_shelf_actions" macro="button_style" width="72" height="60" tooltip_str="Quick actions"><sprite src_builtin="@/watch/edit.svg" width="30" height="30" /></Button>
+            <Button id="btn_shelf_panels" macro="button_style" width="72" height="60" tooltip_str="Panels / sets"><sprite src_builtin="@/watch/display.svg" width="30" height="30" /></Button>
           </div>
-          <Button macro="button_style" _press="::NewAppWindow" tooltip="BAR.ADD_APP_WINDOW" tooltip_side="top" skip="${not_window_capture}">
-            <sprite width="38" height="38" src_builtin="@/edit/mirror.svg" />
-            <label text="+" size="20" />
-          </Button>
-          <Button macro="button_style" _press="::NewInteractiveWindow" tooltip="BAR.ADD_INTERACTIVE_WINDOW" tooltip_side="top" skip="${not_kde}">
-            <sprite width="38" height="38" src_builtin="@/edit/normal.svg" />
-            <label text="+" size="20" />
-          </Button>
-          <Button macro="button_style" _press="::OverlayToggle XSLayouts" tooltip_str="Layout presets"><label text="Layouts" size="20" /></Button>
-          <Button macro="button_style" _press="::OverlayToggle XSPerformance" tooltip_str="PC performance"><label text="PC ▾" size="20" /></Button>
-          <VerticalSeparator />
-          <div id="sets_root" gap="4">
-            <!-- Will populate tags at runtime -->
-            <!-- These are examples for uidev -->
-            <Set idx="0" display="1" />
-            <Set idx="1" display="2" />
-          </div>
-          <div id="panels_root" gap="4" display="none">
-            <!-- Will populate tags at runtime -->
-            <!-- These are examples for uidev -->
-            <Screen idx="0" display="H1" name="HDMI-A-1" />
-            <Screen idx="1" display="D2" name="DP-2"/>
+          <div gap="6">
+            <Button id="btn_layouts" macro="button_style" width="72" height="60" _press="::OverlayToggle XSLayouts" tooltip_str="Saved layouts"><label text="Layouts" size="17" /></Button>
+            <Button id="btn_performance" macro="button_style" width="72" height="60" _press="::OverlayToggle XSPerformance" tooltip_str="PC performance"><label text="PC ▾" size="21" /></Button>
           </div>
         </div>
+      </rectangle>
+      <div id="battery_slot" width="520" height="224" flex_shrink="0" interactable="0" justify_content="center" align_items="flex_start">
+        <rectangle id="battery_strip" macro="decorative_rect" display="none" round="20" padding="6" max_width="520">
+          <div id="devices_root" interactable="0" gap="4" max_width="504" flex_direction="row" flex_wrap="wrap" justify_content="center" />
+        </rectangle>
       </div>
     </div>
   </elements>
