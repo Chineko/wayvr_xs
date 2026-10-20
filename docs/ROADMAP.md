@@ -9,38 +9,36 @@ headset-confirmed. The compact bar-dashboard redesign awaits headset checking.
 The layout manager now responds; the load/restart correction awaits testing;
 app reconnection polish still awaits headset acceptance.
 
-## Planned batches
+## Next three priorities
 
-1. Quick controls are headset-confirmed. Consider the
-   compact drawer for regular screen panels, reusing existing edit controls.
-2. Named layout presets: implemented with in-VR naming, save/replace/rename/delete,
-   startup selection and explicit Load & restart. Await combined headset acceptance.
-3. App reconnection polish: implemented disconnected placeholders, replacement
-   lists, explicit saved-app retry and ambiguous-window labels. Await headset test.
-4. Placement tools: alignment, matching sizes, edge snapping, curved rows and
-   undo for accidental moves.
-5. Wrist dropdown and PC performance monitor: initial PC dropdown implemented;
-   the wrist dropdown is headset-confirmed. Individual sensor availability remains
-   driver-dependent.
-   Further work: a compact menu attached to the
-   wrist for quick panel actions and layout switching, with an expandable PC
-   performance view. Investigate CPU/GPU utilization, RAM/VRAM use, temperatures
-   and VR frame timing where available. Show unavailable metrics clearly;
-   refresh conservatively and suspend monitoring while hidden. Reuse existing
-   wrist/watch infrastructure and controls where practical. Final metrics and
-   layout will be decided during implementation.
-6. Configurable controller shortcuts for panels, controls and presets, integrated
-   with the wrist menu.
-7. Readability and performance: measure capture latency, GPU cost and text
-   clarity; improve idle and hidden-panel behavior based on measurements.
-8. Installation and recovery: first-run guidance, configuration backups, update
-   information and troubleshooting logs.
-9. Stable release: headset regression checklist, documented limitations, draft
-   PR review and a versioned release. Do not merge the draft automatically.
+1. **Quick controls for regular screen panels:** bring the compact controls drawer
+   to regular screen panels, reusing existing edit controls and shared actions.
+2. **Readability and performance:** measure text clarity, capture latency and GPU
+   cost; improve idle and hidden-panel behavior based on those measurements.
+3. **Installation and recovery:** first-run guidance, configuration backups and
+   restoration, update information and troubleshooting logs.
 
-Separate research: compositor support for background/obscured/minimized app
-interaction, followed by feasibility of other desktop environments. Keep the
-current KDE Wayland path dependable first.
+These are the next implementation targets. Continue checking the features already
+implemented and fixing reported bugs alongside these batches.
+
+## Later updates
+
+- Placement tools: alignment, matching sizes, edge snapping, curved rows and undo
+  for accidental moves.
+- Expanded wrist actions and layout switching, plus configurable controller
+  shortcuts for panels, controls and presets.
+- Further layout-preset, app-reconnection and performance-dashboard enhancements
+  after acceptance of the current implementations. Sensor availability remains
+  driver-dependent.
+- Research into background/obscured/minimized app interaction and support for
+  other desktop environments. Keep the current KDE Wayland path dependable first.
+
+## Release readiness
+
+After the three priorities, run the combined headset regression checklist,
+document limitations and prepare a versioned release and draft PR review.
+Later feature additions can ship through updates. Do not merge the draft
+automatically.
 
 Ship small batches with one combined headset test per batch. Preserve the portal
 edit-wrapper fix and use system shaderc for Arch builds.
