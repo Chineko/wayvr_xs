@@ -6,8 +6,8 @@ Independent movement, interactive app selection/switching, dropdown alignment,
 and layout persistence across closing/updating/reopening are headset-confirmed.
 Compact interactive-panel controls and the wrist PC performance dropdown are
 headset-confirmed. The latest combined build is reported working, including
-layouts and restarting. The new Floating shelf wrist redesign awaits its own
-headset acceptance.
+layouts and restarting. The Floating shelf wrist base is headset-confirmed. Its new integrated PC
+performance shelf and mockup-matching charcoal theme await headset acceptance.
 
 ## Floating shelf wrist design
 

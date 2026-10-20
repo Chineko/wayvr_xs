@@ -162,13 +162,6 @@ where
             app,
         );
 
-        match crate::overlays::performance::create(app) {
-            Ok(config) => {
-                me.add(OverlayWindowData::from_config(config), app);
-            }
-            Err(error) => log::warn!("PC performance panel unavailable: {error:#}"),
-        }
-
         // overwrite default layout with saved layout, if exists
         me.restore_layout(app);
         // Saved split sources may be hidden. Initialize their portal requests even

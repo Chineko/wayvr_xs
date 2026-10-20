@@ -39,29 +39,53 @@ fn bind_shelf_buttons(parser: &wgui::parser::ParserState) -> anyhow::Result<()> 
     if parser.get_widget_id("shelf_slot").is_err() {
         return Ok(());
     }
-    let actions = parser.get_widget_id("shelf_actions")?;
-    let panels = parser.get_widget_id("shelf_panels")?;
-    let buttons = ["btn_shelf_actions", "btn_shelf_panels"]
+    let surfaces = ["shelf_actions", "shelf_panels", "shelf_performance"]
+        .map(|id| parser.get_widget_id(id))
+        .into_iter()
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let ids = [
+        "btn_shelf_actions",
+        "btn_shelf_panels",
+        "btn_performance",
+        "btn_performance_close",
+    ];
+    let buttons = ids
         .map(|id| parser.fetch_component_as::<ComponentButton>(id))
         .into_iter()
         .collect::<anyhow::Result<Vec<_>>>()?;
+    let icons: Vec<_> = ids[..3]
+        .iter()
+        .map(|id| parser.get_widget_id(&format!("{id}_icon")).ok())
+        .collect();
     let selected = Rc::new(Cell::new(None));
     for (index, button) in buttons.iter().enumerate() {
         let selected = selected.clone();
         let buttons: Vec<_> = buttons.iter().map(Rc::downgrade).collect();
+        let surfaces = surfaces.clone();
+        let icons = icons.clone();
         button.on_click(Rc::new(move |common, _| {
-            let next = if selected.get() == Some(index) {
+            let next = if index == surfaces.len() || selected.get() == Some(index) {
                 None
             } else {
                 Some(index)
             };
             selected.set(next);
-            for (i, widget) in [actions, panels].into_iter().enumerate() {
-                common
-                    .alterables
-                    .set_widget_visible(widget, next == Some(i));
+            for (i, widget) in surfaces.iter().enumerate() {
+                let active = next == Some(i);
+                common.alterables.set_widget_visible(*widget, active);
                 if let Some(button) = buttons[i].upgrade() {
-                    button.set_sticky_state(common, next == Some(i));
+                    button.set_sticky_state(common, active);
+                }
+                if let Some(icon) = icons[i]
+                    && let Some(mut sprite) = common
+                        .state
+                        .widgets
+                        .get_as::<wgui::widget::sprite::WidgetSprite>(icon)
+                {
+                    let color =
+                        wgui::drawing::Color::from_hex(if active { "#19232B" } else { "#E9EEF2" })
+                            .unwrap();
+                    sprite.set_color(common, color.into());
                 }
             }
             Ok(())
@@ -120,11 +144,31 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             "watch_base",
             "shelf_actions",
             "shelf_panels",
+            "shelf_performance",
             "battery_strip",
         ]
         .map(|id| panel.parser_state.get_widget_id(id))
         .into_iter()
         .collect::<anyhow::Result<Vec<_>>>()?;
+    }
+    if let Err(error) = super::performance::attach(&mut panel) {
+        log::warn!("Wrist performance monitor unavailable: {error:#}");
+    }
+    if let Ok(id) = panel.parser_state.get_widget_id("runtime_name") {
+        let mut common = panel.layout.common();
+        if let Some(mut label) = common
+            .state
+            .widgets
+            .get_as::<wgui::widget::label::WidgetLabel>(id)
+        {
+            label.set_text(
+                &mut common,
+                wgui::i18n::Translation::from_raw_text(match app.feats.xr_backend {
+                    wlx_common::XrBackend::OpenXR => "OpenXR",
+                    wlx_common::XrBackend::OpenVR => "SteamVR · OpenVR",
+                }),
+            );
+        }
     }
     sets_or_overlays(&mut panel, app);
 
@@ -159,6 +203,34 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
                 &doc_params,
             )?;
 
+            if let OverlayEventData::OverlaysChanged(metas) = &event_data {
+                let count = metas
+                    .iter()
+                    .filter(|m| {
+                        matches!(
+                            m.category,
+                            crate::windowing::window::OverlayCategory::Screen
+                                | crate::windowing::window::OverlayCategory::Mirror
+                                | crate::windowing::window::OverlayCategory::Panel
+                                | crate::windowing::window::OverlayCategory::WayVR
+                                | crate::windowing::window::OverlayCategory::Passthru
+                        ) && !matches!(m.name.as_ref(), "XSLayouts" | "XSPerformance")
+                    })
+                    .count();
+                if let Ok(id) = panel.parser_state.get_widget_id("panel_count") {
+                    let mut common = panel.layout.common();
+                    if let Some(mut label) = common
+                        .state
+                        .widgets
+                        .get_as::<wgui::widget::label::WidgetLabel>(id)
+                    {
+                        label.set_text(
+                            &mut common,
+                            wgui::i18n::Translation::from_raw_text(&format!("{count} panels")),
+                        );
+                    }
+                }
+            }
             match event_data {
                 OverlayEventData::EditModeChanged(edit_mode) => {
                     if let Ok(btn_edit_mode) = panel
@@ -366,10 +438,11 @@ mod tests {
                 "watch_base",
                 "shelf_actions",
                 "shelf_panels",
+                "shelf_performance",
                 "battery_strip",
             ]
             .map(|id| parser.get_widget_id(id).unwrap());
-            assert_eq!(extent, glam::vec2(584., 720.));
+            assert_eq!(extent, glam::vec2(584., 800.));
             // Reserved transparent space must not intercept another overlay's pointer.
             for pos in [glam::vec2(280., 100.), glam::vec2(280., 600.)] {
                 layout
@@ -431,7 +504,6 @@ mod tests {
                 "btn_floor",
                 "btn_dashboard",
                 "btn_layouts",
-                "btn_performance",
             ] {
                 let b = parser.fetch_component_as::<ComponentButton>(id).unwrap();
                 let hit = Rc::new(Cell::new(false));
@@ -462,6 +534,99 @@ mod tests {
                     assert!(hit.get(), "Missed {id}");
                 }
             }
+            // The live monitor is a mutually exclusive shelf on this same canvas.
+            click(&mut layout, &parser, "btn_performance");
+            let performance = parser.get_widget_id("shelf_performance").unwrap();
+            let (top, size) = bounds(&layout, performance);
+            assert_eq!(size, glam::vec2(520., 320.));
+            assert!(top.y + size.y <= base.0.y);
+            for (id, text) in [
+                ("frame_value", "144 FPS · 6.9 ms"),
+                ("gpu_value", "100%"),
+                ("cpu_value", "100%"),
+                ("vram_value", "24.0/32 GiB"),
+                ("ram_value", "128.0/256 GiB"),
+                ("gpu_temp_value", "100 °C"),
+                ("cpu_temp_value", "100 °C"),
+            ] {
+                let id = parser.get_widget_id(id).unwrap();
+                let mut common = layout.common();
+                let mut label = common
+                    .state
+                    .widgets
+                    .get_as::<wgui::widget::label::WidgetLabel>(id)
+                    .unwrap();
+                label.set_text(&mut common, wgui::i18n::Translation::from_raw_text(text));
+            }
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("shelf_actions").unwrap()).1,
+                glam::Vec2::ZERO
+            );
+            for id in ["frame", "gpu", "cpu"] {
+                let fill = parser.get_widget_id(&format!("{id}_fill")).unwrap();
+                layout.alterables.set_style(
+                    fill,
+                    wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(0.5)),
+                );
+            }
+            update(&mut layout);
+            for id in ["frame", "gpu", "cpu"] {
+                let node = *layout
+                    .state
+                    .nodes
+                    .get(parser.get_widget_id(&format!("{id}_fill")).unwrap())
+                    .unwrap();
+                let track = layout.state.tree.parent(node).unwrap();
+                assert!(
+                    (layout.state.get_node_size(node).x
+                        - layout.state.get_node_size(track).x * 0.5)
+                        .abs()
+                        < 1.
+                );
+            }
+            for id in [
+                "frame_value",
+                "gpu_value",
+                "cpu_value",
+                "vram_value",
+                "ram_value",
+                "gpu_temp_value",
+                "cpu_temp_value",
+                "status",
+            ] {
+                let (pos, dim) = bounds(&layout, parser.get_widget_id(id).unwrap());
+                assert!(
+                    pos.x >= top.x
+                        && pos.x + dim.x <= top.x + size.x
+                        && pos.y >= top.y
+                        && pos.y + dim.y <= top.y + size.y,
+                    "{id}: {pos:?} {dim:?}"
+                );
+                if matches!(
+                    id,
+                    "vram_value" | "gpu_temp_value" | "ram_value" | "cpu_temp_value"
+                ) {
+                    let card = if matches!(id, "vram_value" | "gpu_temp_value") {
+                        "gpu_card"
+                    } else {
+                        "cpu_card"
+                    };
+                    let (card_pos, card_size) =
+                        bounds(&layout, parser.get_widget_id(card).unwrap());
+                    assert!(
+                        pos.x + dim.x <= card_pos.x + card_size.x,
+                        "{id} crosses its card"
+                    );
+                }
+            }
+            click(&mut layout, &parser, "next_gpu");
+            click(&mut layout, &parser, "btn_performance_close");
+            assert_eq!(bounds(&layout, performance).1, glam::Vec2::ZERO);
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
+                base
+            );
+            assert_eq!(layout.content_size, extent);
             // Three rows of controller / tracker icons fit without moving the watch.
             let root = parser.get_widget_id("devices_root").unwrap();
             for i in 0..18 {
@@ -486,7 +651,7 @@ mod tests {
                 pos.x >= 32. && pos.x + size.x <= 552.,
                 "Battery width: {pos:?} {size:?}"
             );
-            assert!(pos.y + size.y <= 720., "Battery height: {pos:?} {size:?}");
+            assert!(pos.y + size.y <= 800., "Battery height: {pos:?} {size:?}");
             assert_eq!(
                 bounds(&layout, parser.get_widget_id("watch_base").unwrap()),
                 base

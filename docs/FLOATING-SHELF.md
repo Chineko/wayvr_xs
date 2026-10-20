@@ -1,9 +1,10 @@
 # Floating shelf wrist UI
 
-The clock and four controls stay on a compact wrist base. The top-left button
-opens quick actions; the top-right button opens the panel/set list. Selecting the
-same button closes its shelf, and selecting the other switches shelves. Layouts
-and PC open the existing preset manager and performance monitor.
+The clock, session timer, status strip and four controls stay on a compact wrist base. The horizontal icon row opens panels/sets, saved layouts, PC performance and
+quick actions/settings. Selecting the same shelf button closes it; selecting
+another switches shelves. Layouts opens the existing preset manager. PC expands
+above the clock on this same wrist canvas, with a collapse button in its header.
+There is no separate performance overlay behind the hand.
 
 Quick actions reuse the keyboard, layout editing, recenter, floor correction,
 dashboard/settings, capture-window and KDE interactive-window commands. Panel/set
@@ -19,9 +20,9 @@ hours or provide battery data that the VR runtime does not expose.
 
 The canvas reserves transparent space so opening a shelf or connecting a device
 does not resize the wrist base or change its pointer mapping. Transparent reserved
-areas allow pointing through to other overlays. Colors follow the current theme;
-skins remain a later update. Existing user-supplied watch XML without a shelf
-continues to work and takes precedence over the built-in layout.
+areas allow pointing through to other overlays. The charcoal surfaces, pale blue-grey bars, rounded cards and light active icons
+follow the selected mockup. Skins remain a later update. User-supplied watch XML still takes precedence over the built-in layout; the
+embedded monitor requires the new shelf elements.
 
 ## Combined headset check
 
@@ -29,7 +30,10 @@ continues to work and takes precedence over the built-in layout.
   that the wrist base stays in place.
 - Try keyboard, edit mode, recenter, floor correction and dashboard/settings.
 - Add a capture/app panel and an interactive panel; toggle existing panels/sets.
-- Open saved layouts and PC monitoring, and check their existing controls.
+- Open saved layouts and PC monitoring, check GPU switching and monitor collapse.
+  Confirm PC monitoring is above the clock and does not appear behind the hand.
+  Sensor requests stop when the performance shelf or watch is hidden; missing
+  readings show a dash, and WayVR frame timing is not compositor GPU timing.
 - Check controller/tracker percentages, charging marks and device disconnection
   where the runtime supports them. Confirm existing layout persistence.
 

@@ -1,25 +1,25 @@
 <layout version="2">
   <vars>
-    <var key="clock0_size" value="44" />
-    <var key="clock0_date_size" value="16" />
-    <var key="clock0_dow_size" value="16" />
+    <var key="clock0_size" value="32" />
+    <var key="clock0_date_size" value="15" />
+    <var key="clock0_dow_size" value="15" />
     <var key="clock_alt_size" value="18" />
     <var key="clock_alt_tz_size" value="14" />
   </vars>
 
   <macro name="decorative_rect"
-    padding="8" color="background"
-    border="2" border_color="outline" round="8" />
+    padding="8" color="#20272E"
+    border="1" border_color="#39434C" round="20" />
 
-  <macro name="button_style" padding="8" border="2" round="8" align_items="center" justify_content="center" />
+  <macro name="button_style" padding="8" border="0" round="12" color="#151C22" hover_color="#34414C" sticky_color="#D5E2EB" align_items="center" justify_content="center" />
 
   <template name="Device">
     <div width="62" height="66" flex_shrink="0" flex_direction="column" align_items="center" justify_content="center" gap="2">
       <div align_items="center" justify_content="center" height="30">
-        <label _source="battery_charging" _device="${idx}" width="16" size="22" color="tertiary" _charging_color="tertiary" />
-        <sprite width="28" height="28" src_builtin="${src}" color="on_background" />
+        <label _source="battery_charging" _device="${idx}" width="16" size="22" color="#A0BBCF" _charging_color="#A0BBCF" />
+        <sprite width="28" height="28" src_builtin="${src}" color="#E9EEF2" />
       </div>
-      <label _source="battery" _device="${idx}" size="21" weight="bold" _low_color="danger" _normal_color="primary" _charging_color="tertiary" />
+      <label _source="battery" _device="${idx}" size="21" weight="bold" _low_color="#E6A2A2" _normal_color="#E9EEF2" _charging_color="#A0BBCF" />
     </div>
   </template>
 
@@ -82,12 +82,8 @@
 
   <template name="Clock">
     <div gap="3" flex_direction="column" padding="4">
-      <label text="WAYVR XS" color="on_background_variant" size="15" />
-      <label text="11:22 PM" _source="clock" _display="time" color="on_background" size="~clock0_size" weight="bold" />
-      <div gap="8">
-        <label text="Tue" _source="clock" _display="dow_short" color="on_background_variant" size="~clock0_dow_size" />
-        <label text="22/2/2022" _source="clock" _display="date" color="on_background_variant" size="~clock0_date_size" />
-      </div>
+      <label text="W A Y V R  X S" color="#A9B6C1" size="13" />
+      <label text="11:22 PM" _source="clock" _display="time" color="#E9EEF2" size="~clock0_size" weight="bold" />
     </div>
   </template>
 
@@ -100,10 +96,10 @@
 
   <elements>
     <!-- Fixed canvas reserves shelf, tooltip and battery space so the base never jumps. -->
-    <div id="watch_canvas" width="584" height="720" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
-      <div id="shelf_slot" width="520" height="256" flex_shrink="0" interactable="0">
+    <div id="watch_canvas" width="584" height="800" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
+      <div id="shelf_slot" width="520" height="320" flex_shrink="0" interactable="0">
         <rectangle id="shelf_actions" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
-          <label text="QUICK ACTIONS" size="18" color="on_background_variant" />
+          <label text="QUICK ACTIONS" size="18" color="#A9B6C1" />
           <div gap="8" justify_content="space_between" width="100%">
             <Button id="btn_keyboard" macro="button_style" width="82" height="64" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD"><sprite src_builtin="@/watch/keyboard.svg" width="32" height="32" /></Button>
             <Button id="btn_edit_mode" macro="button_style" width="82" height="64" _press="::EditToggle" tooltip="WATCH.EDIT_MODE"><sprite src_builtin="@/watch/edit.svg" width="32" height="32" /></Button>
@@ -118,23 +114,55 @@
           <div id="timezones_root"><Timezones /></div>
         </rectangle>
         <rectangle id="shelf_panels" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
-          <label text="PANELS / SETS" size="18" color="on_background_variant" />
+          <label text="PANELS / SETS" size="18" color="#A9B6C1" />
           <div id="sets_root" gap="6" width="100%" flex_wrap="wrap"><Set idx="0" display="1" /><Set idx="1" display="2" /></div>
           <div id="panels_root" gap="6" width="100%" flex_wrap="wrap" display="none"><Screen idx="0" display="H1" name="HDMI-A-1" /><Screen idx="1" display="D2" name="DP-2" /></div>
         </rectangle>
-      </div>
-      <rectangle id="watch_base" macro="decorative_rect" round="22" padding="12" width="520" height="160" flex_shrink="0" align_items="center" justify_content="space_between">
-        <div id="clock_root"><Clock /></div>
-        <div flex_direction="column" gap="6">
-          <div gap="6">
-            <Button id="btn_shelf_actions" macro="button_style" width="72" height="60" tooltip_str="Quick actions"><sprite src_builtin="@/watch/edit.svg" width="30" height="30" /></Button>
-            <Button id="btn_shelf_panels" macro="button_style" width="72" height="60" tooltip_str="Panels / sets"><sprite src_builtin="@/watch/display.svg" width="30" height="30" /></Button>
+        <rectangle id="shelf_performance" display="none" width="100%" height="100%" macro="decorative_rect" padding="14" flex_direction="column" gap="8">
+          <div width="100%" height="44" justify_content="space_between" align_items="center">
+            <label text="PC performance" size="19" color="#E9EEF2" />
+            <div gap="6"><Button id="next_gpu" macro="button_style" width="48" height="44" tooltip_str="Select next GPU"><label text="GPU ›" size="13" color="#A9B6C1" /></Button>
+            <Button id="btn_performance_close" macro="button_style" width="48" height="44" tooltip_str="Collapse performance"><sprite src_builtin="@/watch/shelf-collapse.svg" width="20" height="20" color="#E9EEF2" /></Button></div>
           </div>
+          <label id="gpu_name" text="Reading sensors…" size="14" color="#A9B6C1" />
+          <rectangle width="100%" height="64" flex_shrink="0" color="#151C22" round="12" padding="12" flex_direction="column" gap="12">
+            <div width="100%" justify_content="space_between"><label text="WayVR frame" size="16" color="#E9EEF2" /><label id="frame_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+            <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="frame_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+          </rectangle>
+          <div width="100%" gap="10" height="90" flex_shrink="0">
+            <rectangle id="gpu_card" width="0" flex_grow="1" color="#151C22" round="12" padding="12" flex_direction="column" gap="10">
+              <div width="100%" justify_content="space_between"><label text="GPU" size="16" color="#E9EEF2" /><label id="gpu_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+              <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="gpu_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+              <div gap="4"><label text="VRAM" size="13" color="#A9B6C1" /><label id="vram_value" text="—" size="13" color="#A9B6C1" /><label text="·" size="13" color="#A9B6C1" /><label id="gpu_temp_value" text="—" size="13" color="#A9B6C1" /></div>
+            </rectangle>
+            <rectangle id="cpu_card" width="0" flex_grow="1" color="#151C22" round="12" padding="12" flex_direction="column" gap="10">
+              <div width="100%" justify_content="space_between"><label text="CPU" size="16" color="#E9EEF2" /><label id="cpu_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+              <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="cpu_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+              <div gap="4"><label text="RAM" size="13" color="#A9B6C1" /><label id="ram_value" text="—" size="13" color="#A9B6C1" /><label text="·" size="13" color="#A9B6C1" /><label id="cpu_temp_value" text="—" size="13" color="#A9B6C1" /></div>
+            </rectangle>
+          </div>
+          <label id="status" text="WayVR loop timing · — unavailable / warming up" size="13" color="#A9B6C1" />
+        </rectangle>
+      </div>
+      <rectangle id="watch_base" macro="decorative_rect" round="22" padding="14" width="520" height="176" flex_shrink="0" flex_direction="column" gap="8">
+        <div width="100%" align_items="center" justify_content="space_between">
+          <div id="clock_root"><Clock /></div>
           <div gap="6">
-            <Button id="btn_layouts" macro="button_style" width="72" height="60" _press="::OverlayToggle XSLayouts" tooltip_str="Saved layouts"><label text="Layouts" size="17" /></Button>
-            <Button id="btn_performance" macro="button_style" width="72" height="60" _press="::OverlayToggle XSPerformance" tooltip_str="PC performance"><label text="PC ▾" size="21" /></Button>
+            <Button id="btn_shelf_panels" macro="button_style" width="54" height="54" tooltip_str="Panels / sets"><sprite id="btn_shelf_panels_icon" src_builtin="@/watch/shelf-panels.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_layouts" macro="button_style" width="54" height="54" _press="::OverlayToggle XSLayouts" tooltip_str="Saved layouts"><sprite src_builtin="@/watch/shelf-layouts.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_performance" macro="button_style" width="54" height="54" tooltip_str="PC performance"><sprite id="btn_performance_icon" src_builtin="@/watch/shelf-stats.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_shelf_actions" macro="button_style" width="54" height="54" tooltip_str="Quick actions / settings"><sprite id="btn_shelf_actions_icon" src_builtin="@/watch/shelf-actions.svg" width="24" height="24" color="#E9EEF2" /></Button>
           </div>
         </div>
+        <div width="100%" gap="8">
+          <label _source="clock" _display="dow_short" size="15" color="#A9B6C1" />
+          <label _source="clock" _display="date" size="15" color="#A9B6C1" />
+          <label _source="timer" _format="· Session %h:%m" size="15" color="#A9B6C1" />
+        </div>
+        <rectangle width="100%" height="40" flex_shrink="0" padding_left="12" padding_right="12" color="#151C22" round="12" align_items="center" justify_content="space_between">
+          <label id="panel_count" text="Panels" size="16" color="#E9EEF2" />
+          <label id="runtime_name" text="OpenXR" size="16" color="#E9EEF2" />
+        </rectangle>
       </rectangle>
       <div id="battery_slot" width="520" height="224" flex_shrink="0" interactable="0" justify_content="center" align_items="flex_start">
         <rectangle id="battery_strip" macro="decorative_rect" display="none" round="20" padding="6" max_width="520">

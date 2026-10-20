@@ -1,18 +1,9 @@
 //! Request-driven PC telemetry. The worker sleeps when the panel is not rendered.
-use crate::{
-    gui::{
-        panel::{GuiPanel, NewGuiPanelParams},
-        timer::GuiTimer,
-    },
-    state::AppState,
-    windowing::{
-        Z_ORDER_WATCH,
-        window::{OverlayCategory, OverlayWindowConfig},
-    },
-};
-use glam::{Affine3A, Vec3};
+use crate::{gui::panel::GuiPanel, state::AppState};
 use std::{
+    cell::RefCell,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::mpsc::{self, Receiver, SyncSender},
     time::{Duration, Instant},
 };
@@ -21,12 +12,7 @@ use wgui::{
     parser::Fetchable,
     widget::{EventResult, label::WidgetLabel},
 };
-use wlx_common::{
-    common::LeftRight,
-    windowing::{OverlayWindowState, Positioning},
-};
 
-const NAME: &str = "XSPerformance";
 #[derive(Default)]
 struct Metrics {
     cpu: Option<f64>,
@@ -273,7 +259,7 @@ struct State {
 #[derive(Clone, Copy)]
 struct Gauge {
     label: wgui::layout::WidgetID,
-    fill: wgui::layout::WidgetID,
+    fill: Option<wgui::layout::WidgetID>,
 }
 fn ratio(value: Option<f64>, total: f64) -> f32 {
     value
@@ -285,46 +271,43 @@ fn paint(common: &mut wgui::event::CallbackDataCommon, gauge: Gauge, amount: f32
     if let Some(mut label) = common.state.widgets.get_as::<WidgetLabel>(gauge.label) {
         label.set_text(common, wgui::i18n::Translation::from_raw_text(text));
     }
-    common.alterables.set_style(
-        gauge.fill,
-        wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(amount)),
-    );
+    if let Some(fill) = gauge.fill {
+        common.alterables.set_style(
+            fill,
+            wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(amount)),
+        );
+    }
 }
 fn percent_text(value: Option<f64>) -> String {
     value.map_or_else(|| "—".into(), |v| format!("{v:.0}%"))
 }
 fn memory_text(used: Option<u64>, total: Option<u64>) -> String {
     match (used, total) {
-        (Some(u), Some(t)) if t > 0 => format!("{:.1} / {:.1} GiB", gib(u), gib(t)),
+        (Some(u), Some(t)) if t > 0 => format!("{:.1}/{:.0} GiB", gib(u), gib(t)),
         _ => "—".into(),
     }
 }
-pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
-    let mut panel = GuiPanel::new_from_template(
-        app,
-        "gui/performance.xml",
-        State {
-            sampler: Sampler::new()?,
-            metrics: None,
-            selected: None,
-            next_gpu: Default::default(),
-        },
-        NewGuiPanelParams {
-            resize_to_parent: true,
-            ..Default::default()
-        },
-    )?;
-    panel.max_size = glam::vec2(1200., 700.);
+/// Attach live telemetry to the watch canvas instead of creating another hand overlay.
+pub fn attach<S: 'static>(panel: &mut GuiPanel<S>) -> anyhow::Result<()> {
+    let Ok(surface) = panel.parser_state.get_widget_id("shelf_performance") else {
+        return Ok(());
+    };
+    let state = Rc::new(RefCell::new(State {
+        sampler: Sampler::new()?,
+        metrics: None,
+        selected: None,
+        next_gpu: Default::default(),
+    }));
     let mut gauges = Vec::new();
     for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
         gauges.push(Gauge {
             label: panel.parser_state.get_widget_id(&format!("{id}_value"))?,
-            fill: panel.parser_state.get_widget_id(&format!("{id}_fill"))?,
+            fill: panel.parser_state.get_widget_id(&format!("{id}_fill")).ok(),
         });
     }
     let gpu_name = panel.parser_state.get_widget_id("gpu_name")?;
     let status = panel.parser_state.get_widget_id("status")?;
-    let next = panel.state.next_gpu.clone();
+    let next = state.borrow().next_gpu.clone();
     panel
         .parser_state
         .fetch_component_as::<wgui::components::button::ComponentButton>("next_gpu")?
@@ -332,10 +315,15 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             next.set(true);
             Ok(())
         }));
-    panel.layout.add_event_listener::<AppState, State>(
+    panel.layout.add_event_listener::<AppState, S>(
         panel.layout.tree_root_widget,
         EventListenerKind::InternalStateChange,
-        Box::new(move |common, _, app, state| {
+        Box::new(move |common, _, app, _| {
+            let node = common.state.nodes.get(surface).copied();
+            if node.is_none_or(|node| !wgui::widget::is_node_visible(&common.state.tree, node)) {
+                return Ok(EventResult::Pass);
+            }
+            let mut state = state.borrow_mut();
             while let Ok(sample) = state.sampler.result.try_recv() {
                 state.sampler.pending = false;
                 state.metrics =
@@ -361,6 +349,7 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
                     "—".into()
                 },
             );
+            let state = &mut *state;
             let metrics = state.metrics.as_ref();
             let gpu = metrics.and_then(|m| {
                 if m.gpus.is_empty() {
@@ -422,10 +411,7 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             );
             for (id, text) in [
                 (gpu_name, gpu.map_or("GPU unavailable", |g| g.name.as_str())),
-                (
-                    status,
-                    "WayVR loop timing • frame bar 0–33.3 ms • — unavailable / warming up",
-                ),
+                (status, "WayVR loop timing · — unavailable / warming up"),
             ] {
                 if let Some(mut label) = common.state.widgets.get_as::<WidgetLabel>(id) {
                     label.set_text(common, wgui::i18n::Translation::from_raw_text(text));
@@ -434,33 +420,7 @@ pub fn create(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
             Ok(EventResult::Pass)
         }),
     );
-    panel
-        .timers
-        .push(GuiTimer::new(Duration::from_millis(250), 0));
-    panel.update_layout(app)?;
-    Ok(OverlayWindowConfig {
-        name: NAME.into(),
-        category: OverlayCategory::Panel,
-        global: true,
-        show_on_spawn: false,
-        z_order: Z_ORDER_WATCH,
-        default_state: OverlayWindowState {
-            grabbable: false,
-            interactable: true,
-            angle_fade: true,
-            positioning: Positioning::FollowHand {
-                hand: LeftRight::Left,
-                lerp: 1.,
-            },
-            transform: Affine3A::from_scale_rotation_translation(
-                Vec3::splat(0.22),
-                super::watch::WATCH_ROT,
-                super::watch::WATCH_POS + super::watch::WATCH_ROT * Vec3::new(0., -0.12, 0.),
-            ),
-            ..Default::default()
-        },
-        ..OverlayWindowConfig::from_backend(Box::new(panel))
-    })
+    Ok(())
 }
 
 #[cfg(test)]
@@ -474,107 +434,6 @@ mod tests {
         assert_eq!(ratio(Some(-20.), 100.), 0.);
         assert_eq!(ratio(Some(250.), 100.), 1.);
         assert_eq!(ratio(Some(50.), 100.), 0.5);
-    }
-    #[test]
-    fn monitor_layout_and_close_button_match_rendered_bounds() {
-        use std::rc::Rc;
-        use wgui::components::{ComponentTrait, button::ComponentButton};
-        use wgui::event::{
-            DeviceBitmask, Event, MouseButtonEvent, MouseButtonIndex, MouseMotionEvent,
-        };
-        let globals = wgui::globals::WguiGlobals::new(
-            Box::new(crate::gui::asset::GuiAsset {}),
-            &wlx_common::locale::WayVRLangProvider::default(),
-            &wgui::font_config::WguiFontConfig::default(),
-            "/nonexistent-test-assets".into(),
-            wgui::palette::WguiColorPalette::get_builtin("default"),
-        )
-        .unwrap();
-        let (mut layout, parser) = wgui::parser::new_layout_from_assets(
-            &wgui::parser::ParseDocumentParams {
-                globals,
-                path: wgui::assets::AssetPathRef::BuiltIn("gui/performance.xml"),
-                extra: Default::default(),
-            },
-            wgui::layout::LayoutParams {
-                resize_to_parent: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        layout
-            .update(&mut wgui::layout::LayoutUpdateParams {
-                size: glam::vec2(1200., 700.),
-                timestep_alpha: 1.,
-            })
-            .unwrap();
-        assert_eq!(layout.content_size, glam::vec2(1200., 700.));
-        for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
-            let fill = parser.get_widget_id(&format!("{id}_fill")).unwrap();
-            parser.get_widget_id(&format!("{id}_value")).unwrap();
-            layout.alterables.set_style(
-                fill,
-                wgui::event::StyleSetRequest::Width(wgui::taffy::prelude::percent(0.5)),
-            );
-        }
-        layout
-            .update(&mut wgui::layout::LayoutUpdateParams {
-                size: glam::vec2(1200., 700.),
-                timestep_alpha: 1.,
-            })
-            .unwrap();
-        for id in ["frame", "gpu", "vram", "gpu_temp", "cpu", "ram", "cpu_temp"] {
-            let fill = parser.get_widget_id(&format!("{id}_fill")).unwrap();
-            let node = *layout.state.nodes.get(fill).unwrap();
-            let track = layout.state.tree.parent(node).unwrap();
-            let width = layout.state.get_node_size(node).x;
-            assert!(
-                (width - layout.state.get_node_size(track).x * 0.5).abs() < 1.,
-                "{id}"
-            );
-        }
-        parser
-            .fetch_component_as::<ComponentButton>("next_gpu")
-            .unwrap();
-
-        let button = parser
-            .fetch_component_as::<ComponentButton>("close")
-            .unwrap();
-        let clicked = Rc::new(std::cell::Cell::new(false));
-        let result = clicked.clone();
-        button.on_click(Rc::new(move |_, _| {
-            result.set(true);
-            Ok(())
-        }));
-        let node = *layout.state.nodes.get(button.base().get_id()).unwrap();
-        let mut pos = layout.state.get_node_size(node) * 0.5;
-        let mut parent = Some(node);
-        while let Some(node) = parent {
-            let l = layout.state.tree.layout(node).unwrap();
-            pos += glam::vec2(l.location.x, l.location.y);
-            parent = layout.state.tree.parent(node);
-        }
-        assert!(pos.x < 1200. && pos.y < 700.);
-        let device = DeviceBitmask::from_index(0);
-        layout
-            .push_event(
-                &Event::MouseMotion(MouseMotionEvent { pos, device }),
-                &mut (),
-                &mut (),
-            )
-            .unwrap();
-        let event = MouseButtonEvent {
-            pos,
-            device,
-            index: MouseButtonIndex::Left,
-        };
-        layout
-            .push_event(&Event::MouseDown(event), &mut (), &mut ())
-            .unwrap();
-        layout
-            .push_event(&Event::MouseUp(event), &mut (), &mut ())
-            .unwrap();
-        assert!(clicked.get());
     }
     #[test]
     fn gpu_sensor_values_and_missing_data_are_honest() {
