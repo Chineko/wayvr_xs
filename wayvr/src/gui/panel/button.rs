@@ -307,6 +307,14 @@ pub(super) fn setup_custom_button<S: 'static>(
                         .enqueue(TaskType::Overlay(OverlayTask::ToggleDashboard));
                     Ok(EventResult::Consumed)
                 }),
+                "::ShowHide" => Box::new(move |_common, data, app, _| {
+                    if !test_button(data) || !test_duration(&button, app) {
+                        return Ok(EventResult::Pass);
+                    }
+
+                    app.tasks.enqueue(TaskType::Overlay(OverlayTask::ShowHide));
+                    Ok(EventResult::Consumed)
+                }),
                 "::SetToggle" => {
                     let arg = args.next().unwrap_or_default();
                     let Ok(set_idx) = arg.parse() else {

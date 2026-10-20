@@ -55,7 +55,6 @@ pub struct OverlayWindowManager<T> {
     /// The set that will be restored by show_hide.
     /// Usually the same as current_set, except it keeps its value when current_set is hidden.
     restore_set: usize,
-    anchor_local: Affine3A,
     watch_id: OverlayID,
     keyboard_id: OverlayID,
     edit_mode: bool,
@@ -75,7 +74,6 @@ where
             restore_set: 0,
             sets: vec![OverlayWindowSet::default()],
             global_set: OverlayWindowSet::default(),
-            anchor_local: Affine3A::from_translation(Vec3::NEG_Z),
             watch_id: OverlayID::null(),    // set down below
             keyboard_id: OverlayID::null(), // set down below
             edit_mode: false,
@@ -156,11 +154,6 @@ where
             log::info!("Loaded custom panel '{}'", panel.name);
             me.add(OverlayWindowData::from_config(panel), app);
         }
-
-        me.add(
-            OverlayWindowData::from_config(crate::overlays::layout_presets::create(app)?),
-            app,
-        );
 
         // overwrite default layout with saved layout, if exists
         me.restore_layout(app);
@@ -269,8 +262,7 @@ where
                     Ok(message)
                 })();
                 let message = result.unwrap_or_else(|error| format!("Preset error: {error:#}"));
-                if let Some(panel) =
-                    self.mut_by_selector(&OverlaySelector::Name("XSLayouts".into()))
+                if let Some(panel) = self.mut_by_selector(&OverlaySelector::Name(WATCH_NAME.into()))
                 {
                     panel.config.backend.notify(
                         app,
@@ -1461,10 +1453,8 @@ impl<T> OverlayWindowManager<T> {
 
     pub fn show_hide(&mut self, app: &mut AppState) {
         if self.current_set.is_none() {
-            let hmd = snap_upright(app.input_state.hmd, Vec3A::Y);
-            app.anchor = hmd * self.anchor_local;
-
-            self.switch_to_set(app, Some(self.restore_set), false);
+            // Restore the stored workspace in place; hiding is not recentering.
+            self.switch_to_set(app, Some(self.restore_set), true);
         } else {
             self.switch_to_set(app, None, false);
         }

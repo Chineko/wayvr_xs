@@ -31,6 +31,7 @@ struct WatchState {
     overlay_list: OverlayList,
     set_list: SetList,
     clock_12h: bool,
+    layouts: Option<super::layout_presets::WristManager>,
 }
 
 /// Use the same callbacks in production and pointer-hit regression tests.
@@ -39,21 +40,28 @@ fn bind_shelf_buttons(parser: &wgui::parser::ParserState) -> anyhow::Result<()> 
     if parser.get_widget_id("shelf_slot").is_err() {
         return Ok(());
     }
-    let surfaces = ["shelf_actions", "shelf_panels", "shelf_performance"]
-        .map(|id| parser.get_widget_id(id))
-        .into_iter()
-        .collect::<anyhow::Result<Vec<_>>>()?;
+    let surfaces = [
+        "shelf_actions",
+        "shelf_panels",
+        "shelf_performance",
+        "shelf_layouts",
+    ]
+    .map(|id| parser.get_widget_id(id))
+    .into_iter()
+    .collect::<anyhow::Result<Vec<_>>>()?;
     let ids = [
         "btn_shelf_actions",
         "btn_shelf_panels",
         "btn_performance",
+        "btn_layouts",
         "btn_performance_close",
+        "btn_layouts_close",
     ];
     let buttons = ids
         .map(|id| parser.fetch_component_as::<ComponentButton>(id))
         .into_iter()
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let icons: Vec<_> = ids[..3]
+    let icons: Vec<_> = ids[..surfaces.len()]
         .iter()
         .map(|id| parser.get_widget_id(&format!("{id}_icon")).ok())
         .collect();
@@ -64,7 +72,7 @@ fn bind_shelf_buttons(parser: &wgui::parser::ParserState) -> anyhow::Result<()> 
         let surfaces = surfaces.clone();
         let icons = icons.clone();
         button.on_click(Rc::new(move |common, _| {
-            let next = if index == surfaces.len() || selected.get() == Some(index) {
+            let next = if index >= surfaces.len() || selected.get() == Some(index) {
                 None
             } else {
                 Some(index)
@@ -92,6 +100,43 @@ fn bind_shelf_buttons(parser: &wgui::parser::ParserState) -> anyhow::Result<()> 
         }));
     }
     Ok(())
+}
+
+fn update_workspace_button(
+    parser: &impl Fetchable,
+    common: &mut wgui::event::CallbackDataCommon,
+    hidden: bool,
+) {
+    if let Ok(button) = parser.fetch_component_as::<ComponentButton>("btn_show_hide") {
+        button.set_text(
+            common,
+            wgui::i18n::Translation::from_raw_text(if hidden {
+                "Restore overlays"
+            } else {
+                "Hide overlays"
+            }),
+        );
+        button.set_sticky_state(common, hidden);
+        if let Ok(icon) = parser.get_widget_id("show_hide_icon")
+            && let Some(mut sprite) = common
+                .state
+                .widgets
+                .get_as::<wgui::widget::sprite::WidgetSprite>(icon)
+        {
+            sprite.set_color(
+                common,
+                wgui::drawing::Color::from_hex(if hidden { "#19232B" } else { "#E9EEF2" })
+                    .unwrap()
+                    .into(),
+            );
+        }
+        button.set_text_color(
+            common,
+            wgui::drawing::Color::from_hex(if hidden { "#19232B" } else { "#E9EEF2" })
+                .unwrap()
+                .into(),
+        );
+    }
 }
 
 pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
@@ -139,12 +184,14 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
     )?;
 
     bind_shelf_buttons(&panel.parser_state)?;
+    panel.state.layouts = Some(super::layout_presets::attach(&mut panel));
     if panel.parser_state.get_widget_id("shelf_slot").is_ok() {
         panel.hit_regions = [
             "watch_base",
             "shelf_actions",
             "shelf_panels",
             "shelf_performance",
+            "shelf_layouts",
             "battery_strip",
         ]
         .map(|id| panel.parser_state.get_widget_id(id))
@@ -231,7 +278,27 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
                     }
                 }
             }
+            if let Some(layouts) = &panel.state.layouts {
+                layouts.notify(
+                    &mut wgui::event::CallbackDataCommon {
+                        state: &panel.layout.state,
+                        alterables: &mut panel.layout.alterables,
+                    },
+                    &panel.parser_state,
+                    &event_data,
+                );
+            }
             match event_data {
+                OverlayEventData::ActiveSetChanged(set) => {
+                    update_workspace_button(
+                        &panel.parser_state,
+                        &mut wgui::event::CallbackDataCommon {
+                            state: &panel.layout.state,
+                            alterables: &mut panel.layout.alterables,
+                        },
+                        set.is_none(),
+                    );
+                }
                 OverlayEventData::EditModeChanged(edit_mode) => {
                     if let Ok(btn_edit_mode) = panel
                         .parser_state
@@ -491,6 +558,19 @@ mod tests {
                     base
                 );
             }
+            click(&mut layout, &parser, "btn_layouts");
+            assert!(
+                bounds(&layout, parser.get_widget_id("shelf_layouts").unwrap())
+                    .1
+                    .y
+                    > 200.
+            );
+            click(&mut layout, &parser, "btn_layouts_close");
+            assert_eq!(
+                bounds(&layout, parser.get_widget_id("shelf_layouts").unwrap()).1,
+                glam::Vec2::ZERO
+            );
+            click(&mut layout, &parser, "btn_shelf_panels");
             click(&mut layout, &parser, "btn_shelf_panels");
             assert_eq!(
                 bounds(&layout, parser.get_widget_id("shelf_panels").unwrap()).1,
@@ -503,7 +583,6 @@ mod tests {
                 "btn_recenter",
                 "btn_floor",
                 "btn_dashboard",
-                "btn_layouts",
             ] {
                 let b = parser.fetch_component_as::<ComponentButton>(id).unwrap();
                 let hit = Rc::new(Cell::new(false));

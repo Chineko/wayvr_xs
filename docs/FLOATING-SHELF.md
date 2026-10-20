@@ -2,7 +2,12 @@
 
 The clock, session timer, status strip and four controls stay on a compact wrist base. The horizontal icon row opens panels/sets, saved layouts, PC performance and
 quick actions/settings. Selecting the same shelf button closes it; selecting
-another switches shelves. Layouts opens the existing preset manager. PC expands
+another switches shelves. Layouts opens the preset manager inside the same wrist shelf. Its selector lists
+three presets per page, the name field opens a compact in-VR keyboard, and Save
+creates a new preset or confirms replacement of an existing name. Rename, Delete
+and startup selection reuse the existing storage. Clicking an active startup
+choice clears it back to last-session startup. Loading still explicitly restarts
+WayVR. Delete and replacement require a second click. PC expands
 above the clock on this same wrist canvas, with a collapse button in its header.
 There is no separate performance overlay behind the hand.
 
@@ -39,3 +44,9 @@ embedded monitor requires the new shelf elements.
 
 Regular screen-panel quick controls, capture optimization and installation/recovery
 remain the next three roadmap targets. This change reorganizes the wrist UI.
+
+The panels/sets shelf includes an eye button using `OverlayTask::ShowHide`. It
+shows **Hide overlays** normally and **Restore overlays** with a highlighted
+state while the workspace is hidden. The wrist remains accessible. Restoration
+uses `restore_set`, retains the stored transforms and does not recenter. Global
+overlays retain the existing ShowHide behavior.
