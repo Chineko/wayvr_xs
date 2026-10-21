@@ -3,7 +3,6 @@ name: Check portable Windows core
 on:
   push:
     branches: [feat/windows-steamvr]
-  pull_request:
     paths:
       - 'xs-core/**'
       - '.github/workflows/check-windows-core.yml'
@@ -12,12 +11,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-core-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   portable-core:
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-24.04]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Format

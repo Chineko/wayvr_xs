@@ -9,7 +9,9 @@ Windows installer yet.** The existing Arch packages remain Linux builds.
 The target is a native Windows SteamVR overlay with the same 5120×1440 ultrawide
 splits, quick controls, independent movement, saved placements, window mirrors
 and wrist media experience. The Linux feature and release branches are separate
-from this work. User reports the Linux version runs well.
+from this work. This branch has only the Windows core workflow; Linux and Arch
+workflows remain on their Linux branches. It is not intended to merge into the
+Linux branch. User reports the Linux version runs well.
 
 ## Repository review
 
@@ -57,7 +59,7 @@ OpenXR support and Meta-only runtime support are not part of the first milestone
 - These coordinate helpers are not yet connected to a Windows capture/input API.
   Callers must establish per-monitor DPI awareness and supply physical bounds.
 - `.github/workflows/check-windows-core.yml` checks formatting, tests and Clippy
-  on native Windows and Ubuntu. It does **not** build the full VR application.
+  on native Windows only. It does **not** build the full VR application.
 
 Run from the repository root:
 
