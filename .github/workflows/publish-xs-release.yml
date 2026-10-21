@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: publish-xs-v0.1.1
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -53,15 +53,21 @@ jobs:
           test "$(cat SOURCE-COMMIT.txt)" = "$SOURCE_COMMIT"
           sha256sum -c SHA256SUMS
           test -f wayvr-xs-git-26.8.0.r1724.ga24ca425-1-x86_64.pkg.tar.zst
+          # Snapshot checksum covers the files attached to this release only.
+          sha256sum wayvr-xs-git-26.8.0.r1724.ga24ca425-1-x86_64.pkg.tar.zst SOURCE-COMMIT.txt > SHA256SUMS
       - name: Publish versioned snapshot
         run: |
-          # Fail if a release already exists; never overwrite an existing version.
+          # Resume only this exact verified snapshot if publication is retried.
           # xs-v tags deliberately avoid the upstream v** AppImage workflow.
-          gh release create "$RELEASE_TAG" \
+          if gh release view "$RELEASE_TAG" --json targetCommitish > existing.json 2>/dev/null; then
+            test "$(jq -r .targetCommitish existing.json)" = "$SOURCE_COMMIT"
+          else
+            gh release create "$RELEASE_TAG" \
             --target "$SOURCE_COMMIT" --draft \
             --title 'WayVR XS 0.1.1' \
             --notes-file docs/RELEASE-NOTES-XS-0.1.1.md
+          fi
           gh release upload "$RELEASE_TAG" \
             package/wayvr-xs-git-26.8.0.r1724.ga24ca425-1-x86_64.pkg.tar.zst \
-            package/SHA256SUMS package/SOURCE-COMMIT.txt
+            package/SHA256SUMS package/SOURCE-COMMIT.txt --clobber
           gh release edit "$RELEASE_TAG" --draft=false --latest
