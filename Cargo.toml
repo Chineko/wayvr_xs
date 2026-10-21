@@ -1,5 +1,7 @@
 [workspace]
 resolver = "3"
+# Keep the portable core independently testable without Linux workspace dependencies.
+exclude = ["xs-core"]
 members = [
   "dash-frontend",
   "scripts/prost_build",

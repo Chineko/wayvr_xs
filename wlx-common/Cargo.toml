@@ -8,6 +8,7 @@ authors = ["galister", "oo8dev"]
 repository = "https://github.com/wlx-team/wayvr"
 
 [dependencies]
+xs-core = { path = "../xs-core" }
 wayvr-ipc = { path = "../wayvr-ipc", default-features = false }
 
 anyhow.workspace = true

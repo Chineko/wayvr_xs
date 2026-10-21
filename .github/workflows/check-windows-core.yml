@@ -1,0 +1,28 @@
+name: Check portable Windows core
+
+on:
+  push:
+    branches: [feat/windows-steamvr]
+  pull_request:
+    paths:
+      - 'xs-core/**'
+      - '.github/workflows/check-windows-core.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-core:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Format
+        run: cargo fmt --manifest-path xs-core/Cargo.toml -- --check
+      - name: Test shared regions and Windows coordinate mapping
+        run: cargo test --locked --manifest-path xs-core/Cargo.toml
+      - name: Clippy
+        run: cargo clippy --locked --manifest-path xs-core/Cargo.toml --all-targets -- -D warnings

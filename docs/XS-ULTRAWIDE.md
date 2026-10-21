@@ -205,8 +205,7 @@ The integer boundary and pointer-coordinate tests can also run without the
 VR runtime:
 
 ```sh
-rustc --test wlx-common/src/screen_region.rs -o /tmp/wayvr-xs-regions
-/tmp/wayvr-xs-regions
+cargo test --locked --manifest-path xs-core/Cargo.toml
 ```
 
 On the target headset, check all three layouts; click, scroll and drag in each

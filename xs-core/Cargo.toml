@@ -1,0 +1,10 @@
+[package]
+name = "xs-core"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Portable desktop-region geometry for WayVR XS"
+publish = false
+
+[workspace]
+resolver = "3"

@@ -1,5 +1,6 @@
 .~lock.*
 /target
+/xs-core/target/
 /packaging/arch/src/
 /packaging/arch/pkg/
 /packaging/arch/wayvr-xs/
