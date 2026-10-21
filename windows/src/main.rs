@@ -58,6 +58,37 @@ fn positive(s: &str) -> std::result::Result<f32, String> {
         Err("Expected 0.1 to 10 meters".into())
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+struct ExpectedSize([u32; 2]);
+impl std::str::FromStr for ExpectedSize {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, String> {
+        let (w, h) = s
+            .split_once(['x', 'X'])
+            .ok_or("Use WIDTHxHEIGHT, for example 5120x1440")?;
+        let width = w.parse::<u32>().map_err(|_| "Invalid width")?;
+        let height = h.parse::<u32>().map_err(|_| "Invalid height")?;
+        if width == 0 || height == 0 {
+            return Err("Width and height must be positive".into());
+        }
+        Ok(Self([width, height]))
+    }
+}
+
+fn check_size(actual: [u32; 2], expected: Option<ExpectedSize>) -> Result<()> {
+    if let Some(ExpectedSize(expected)) = expected {
+        ensure!(
+            actual == expected,
+            "Windows is providing {}x{}, expected {}x{}. Restore the desired resolution in Windows Display settings while your VR streaming session is connected, and disable any automatic resolution adjustment in the streaming software. This app cannot capture pixels outside the active Windows desktop.",
+            actual[0],
+            actual[1],
+            expected[0],
+            expected[1]
+        );
+    }
+    Ok(())
+}
 #[derive(Parser)]
 #[command(
     version,
@@ -81,6 +112,9 @@ struct Args {
     capture_test: Option<u32>,
     #[arg(long)]
     openvr_dll: Option<PathBuf>,
+    /// Stop with a useful message if streaming software changes the desktop resolution.
+    #[arg(long, value_name = "WIDTHxHEIGHT")]
+    expect_size: Option<ExpectedSize>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -111,6 +145,9 @@ fn run() -> Result<()> {
             m.rect.top,
             m.adapter_index
         );
+        if let Some([w, h]) = m.active_mode {
+            println!("   Windows active pixel mode: {w}x{h}");
+        }
     }
     if args.list_monitors {
         return Ok(());
@@ -119,12 +156,16 @@ fn run() -> Result<()> {
         .get(args.monitor)
         .context("Monitor index is unavailable; use --list-monitors")?;
     let name = selected.name.clone();
+    if let Some(mode) = selected.active_mode {
+        check_size(mode, args.expect_size)?;
+    }
     let mut capture = capture::Capture::new(selected)?;
     if let Some(seconds) = args.capture_test {
         let start = Instant::now();
         let mut frames = 0;
         while RUNNING.load(Ordering::Relaxed) && start.elapsed().as_secs() < u64::from(seconds) {
             if capture.update(50)? {
+                check_size(capture.size, args.expect_size)?;
                 frames += 1;
             }
         }
@@ -275,6 +316,9 @@ fn run() -> Result<()> {
         } else {
             match capture.update(5) {
                 Ok(updated) => {
+                    if updated {
+                        check_size(capture.size, args.expect_size)?;
+                    }
                     if head.is_none() {
                         head = vr.head();
                         dirty = true;
@@ -294,12 +338,15 @@ fn run() -> Result<()> {
                         }
                         let bounds: Vec<_> =
                             regions.iter().map(|r| r.uv(capture.size[0])).collect();
-                        vr.submit(texture, &bounds)?;
+                        vr.submit(texture, &bounds, capture.color)?;
                         vr.show(&visible)?;
                         dirty = false;
                     }
                 }
                 Err(e) => {
+                    if !capture::recoverable(&e) {
+                        return Err(e).context("Capture stopped; this error cannot be fixed by repeatedly reconnecting");
+                    }
                     eprintln!("Capture paused: {e:#}. Retrying after desktop/device recovery.");
                     vr.show(&vec![false; regions.len()])?;
                     vr.clear();
@@ -355,6 +402,19 @@ fn placement(head: [f32; 12], x: f32, y: f32, distance: f32) -> [f32; 12] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn resolution_guard_detects_streaming_mode_change_before_capture() {
+        let expected: ExpectedSize = "5120x1440".parse().unwrap();
+        assert!(check_size([5120, 1440], Some(expected)).is_ok());
+        let error = check_size([2560, 1440], Some(expected)).unwrap_err();
+        assert!(error.to_string().contains("Windows is providing 2560x1440"));
+        assert!(check_size([2560, 1440], None).is_ok());
+        for invalid in ["0x1440", "5120x0", "5120", "-1x1440", "5120x1440x2"] {
+            assert!(invalid.parse::<ExpectedSize>().is_err());
+        }
+        let args = Args::try_parse_from(["xs", "--expect-size", "5120x1440"]).unwrap();
+        assert_eq!(args.expect_size.unwrap().0, [5120, 1440]);
+    }
     #[test]
     fn every_layout_covers_ultrawide_once_and_preserves_physical_aspect() {
         for layout in [Layout::Full, Layout::Dual, Layout::Thirds, Layout::Center] {

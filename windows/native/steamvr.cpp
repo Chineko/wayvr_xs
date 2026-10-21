@@ -103,11 +103,12 @@ int xs_vr_place(uint64_t handle, float width, const float* values) {
     return static_cast<int>(overlays->SetOverlayTransformAbsolute(handle,
         vr::TrackingUniverseStanding, &matrix));
 }
-int xs_vr_submit(uint64_t handle, void* d3d_texture, float u_min, float u_max) {
+int xs_vr_submit(uint64_t handle, void* d3d_texture, float u_min, float u_max, bool linear) {
     vr::VRTextureBounds_t bounds{u_min, 0.0f, u_max, 1.0f};
     auto error = overlays->SetOverlayTextureBounds(handle, &bounds);
     if (error != vr::VROverlayError_None) return static_cast<int>(error);
-    vr::Texture_t texture{d3d_texture, vr::TextureType_DirectX, vr::ColorSpace_Gamma};
+    vr::Texture_t texture{d3d_texture, vr::TextureType_DirectX,
+        linear ? vr::ColorSpace_Linear : vr::ColorSpace_Gamma};
     return static_cast<int>(overlays->SetOverlayTexture(handle, &texture));
 }
 }

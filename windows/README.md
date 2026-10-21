@@ -82,14 +82,38 @@ save screenshots or send pixels anywhere. Static desktops may produce few update
 desktop, or when capture access is unavailable. Run in a normal unlocked desktop
 session. Administrator privileges are not a default requirement. Rotated
 monitors and cross-GPU capture are explicitly rejected in this prototype.
-HDR color fidelity has not been validated; the initial path uses DXGI's BGRA8
-desktop image. The hardware cursor may be absent when Windows supplies it as a
+Both BGRA/RGBA8 SDR and RGBA16F (`DXGI_FORMAT(10)`) desktop surfaces are
+supported. FP16/scRGB textures stay floating point and are submitted to SteamVR
+as linear color. There is no HDR-to-SDR tone mapper yet; brightness/highlight
+fidelity still needs headset validation. The hardware cursor may be absent when Windows supplies it as a
 separate pointer shape.
 
-On desktop duplication interruption, the app hides and clears the overlays,
+Permanent capture errors stop with a useful message instead of retrying forever.
+On desktop/device interruption or size/format change, the app hides and clears the overlays,
 releases capture, and retries the same display name once per second. It does not
 silently switch to another monitor. Capture uses one app-owned shared GPU texture
 for every split. GPU copies complete before releasing DXGI's borrowed frame.
+
+## Desktop resolution changed while streaming
+
+The app captures the active Windows desktop, not the monitor's advertised native
+resolution. If `--list-monitors` shows 2560x1440 while your physical monitor is
+5120x1440, that alone is not evidence of a capture crop. The list now also prints
+Windows' current pixel mode separately from DXGI desktop bounds.
+
+While Virtual Desktop is connected, check Windows **Settings > System > Display**
+and restore 5120x1440 on the ultrawide. Check whether streaming software is
+changing desktop resolution automatically. The app deliberately does not change
+your display mode. Add a guard to either command:
+
+```powershell
+.\wayvr-xs-windows.exe --monitor 0 --capture-test 5 --expect-size 5120x1440
+.\wayvr-xs-windows.exe --monitor 0 --layout dual --expect-size 5120x1440
+```
+
+A mismatch stops with an explicit active/expected resolution message. Successful
+capture prints the actual GPU surface dimensions and format, which distinguish a
+smaller Windows desktop from a capture-size discrepancy.
 
 ## Build from source
 
@@ -116,7 +140,7 @@ change display mode and check recovery. Confirm capture frame rate and GPU use
 at 5120×1440. Automated build/tests cannot establish visual quality, compositor
 synchronization, hardware recovery or acceptable frame timing.
 
-Local validation so far: native x64 release build, formatting, Clippy, two
-layout/placement tests, eight shared-core tests, and real monitor enumeration.
+Local validation so far: native x64 release build, formatting, Clippy, six
+Windows regression/layout/placement tests, eight shared-core tests, and real monitor enumeration.
 Live desktop capture returned `0x80070005` in the restricted development session;
 capture and headset rendering have not yet been accepted on hardware.

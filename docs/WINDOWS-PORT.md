@@ -129,3 +129,17 @@ of starting the Windows branch.
 - [Windows screen capture](https://learn.microsoft.com/en-us/windows/apps/develop/media-authoring-processing/screen-capture)
 - [SendInput and integrity restrictions](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
 - [Windows media sessions](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager)
+
+## Windows 0.1.1 capture fixes
+
+The first hardware report returned `DXGI_FORMAT(10)` and repeatedly reconnected.
+The capture backend now accepts RGBA16F/scRGB and keeps that floating-point
+format through OpenVR submission with linear color space. BGRA/RGBA8 retain
+gamma submission. HDR tone mapping/fidelity remains unvalidated on the headset.
+Permanent format errors now exit rather than entering device recovery; actual
+access/device/desktop loss and size/format changes still reconnect.
+
+Monitor listing now includes the current Windows pixel mode. Optional
+`--expect-size 5120x1440` guards both initial active mode and captured surface
+size. The app does not force display modes or assume that streaming software has
+kept the physical monitor's native resolution. See `windows/README.md`.

@@ -17,7 +17,8 @@ unsafe extern "C" {
     fn xs_vr_show(handle: u64, visible: bool) -> i32;
     fn xs_vr_clear(handle: u64);
     fn xs_vr_place(handle: u64, width: f32, matrix: *const f32) -> i32;
-    fn xs_vr_submit(handle: u64, texture: *mut c_void, u_min: f32, u_max: f32) -> i32;
+    fn xs_vr_submit(handle: u64, texture: *mut c_void, u_min: f32, u_max: f32, linear: bool)
+    -> i32;
 }
 
 fn check(code: i32, action: &str) -> Result<()> {
@@ -124,7 +125,12 @@ impl Runtime {
             "Position overlay",
         )
     }
-    pub fn submit(&self, texture: &ID3D11Texture2D, bounds: &[[f32; 2]]) -> Result<()> {
+    pub fn submit(
+        &self,
+        texture: &ID3D11Texture2D,
+        bounds: &[[f32; 2]],
+        color: crate::capture::CaptureColor,
+    ) -> Result<()> {
         ensure!(
             bounds.len() == self.handles.len(),
             "Overlay/region count mismatch"
@@ -132,7 +138,15 @@ impl Runtime {
         for (&h, uv) in self.handles.iter().zip(bounds) {
             // Texture is app-owned, copy-complete, and retained through all calls and until clear/destroy.
             check(
-                unsafe { xs_vr_submit(h, texture.as_raw(), uv[0], uv[1]) },
+                unsafe {
+                    xs_vr_submit(
+                        h,
+                        texture.as_raw(),
+                        uv[0],
+                        uv[1],
+                        color == crate::capture::CaptureColor::Linear,
+                    )
+                },
                 "Submit D3D11 desktop texture",
             )?;
         }

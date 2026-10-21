@@ -7,10 +7,69 @@ use windows::{
             Direct3D::{D3D_DRIVER_TYPE_UNKNOWN, D3D_FEATURE_LEVEL_11_0},
             Direct3D11::*,
             Dxgi::{Common::*, *},
+            Gdi::{DEVMODEW, ENUM_CURRENT_SETTINGS, EnumDisplaySettingsW},
         },
     },
-    core::{BOOL, Interface},
+    core::{BOOL, Interface, PCWSTR},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaptureColor {
+    Gamma,
+    Linear,
+}
+
+#[derive(Debug)]
+struct UnsupportedFormat(DXGI_FORMAT);
+impl std::fmt::Display for UnsupportedFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Unsupported desktop texture format {:?}; this is not a temporary device loss",
+            self.0
+        )
+    }
+}
+impl std::error::Error for UnsupportedFormat {}
+
+fn capture_color(format: DXGI_FORMAT) -> Result<CaptureColor> {
+    match format {
+        DXGI_FORMAT_B8G8R8A8_UNORM | DXGI_FORMAT_R8G8B8A8_UNORM => Ok(CaptureColor::Gamma),
+        // Windows HDR desktop duplication can return scRGB, even with DuplicateOutput.
+        // Keep the FP16 texture and tell OpenVR it is linear; never byte-copy to BGRA8.
+        DXGI_FORMAT_R16G16B16A16_FLOAT => Ok(CaptureColor::Linear),
+        _ => Err(UnsupportedFormat(format).into()),
+    }
+}
+
+#[derive(Debug)]
+struct CaptureChanged;
+impl std::fmt::Display for CaptureChanged {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            "Desktop size/format changed; recreate capture before releasing its published texture",
+        )
+    }
+}
+impl std::error::Error for CaptureChanged {}
+
+/// Retry actual device/desktop interruptions, not permanent format or programming errors.
+pub fn recoverable(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<CaptureChanged>().is_some()
+        || error
+            .downcast_ref::<windows::core::Error>()
+            .is_some_and(|e| {
+                matches!(
+                    e.code(),
+                    DXGI_ERROR_ACCESS_LOST
+                        | DXGI_ERROR_DEVICE_REMOVED
+                        | DXGI_ERROR_DEVICE_RESET
+                        | DXGI_ERROR_SESSION_DISCONNECTED
+                        | DXGI_ERROR_NOT_CURRENTLY_AVAILABLE
+                        | windows::Win32::Foundation::E_ACCESSDENIED
+                )
+            })
+}
 
 pub struct Monitor {
     pub adapter: IDXGIAdapter1,
@@ -18,6 +77,7 @@ pub struct Monitor {
     pub adapter_index: u32,
     pub name: String,
     pub rect: windows::Win32::Foundation::RECT,
+    pub active_mode: Option<[u32; 2]>,
 }
 
 pub fn monitors() -> Result<Vec<Monitor>> {
@@ -52,6 +112,19 @@ pub fn monitors() -> Result<Vec<Monitor>> {
                         adapter_index: ai,
                         name: String::from_utf16_lossy(&desc.DeviceName[..end]),
                         rect: desc.DesktopCoordinates,
+                        active_mode: {
+                            let mut mode = DEVMODEW {
+                                dmSize: size_of::<DEVMODEW>() as u16,
+                                ..Default::default()
+                            };
+                            EnumDisplaySettingsW(
+                                PCWSTR(desc.DeviceName.as_ptr()),
+                                ENUM_CURRENT_SETTINGS,
+                                &mut mode,
+                            )
+                            .as_bool()
+                            .then_some([mode.dmPelsWidth, mode.dmPelsHeight])
+                        },
                     });
                 }
                 oi += 1;
@@ -69,6 +142,8 @@ pub struct Capture {
     query: ID3D11Query,
     pub texture: Option<ID3D11Texture2D>,
     pub size: [u32; 2],
+    format: DXGI_FORMAT,
+    pub color: CaptureColor,
 }
 
 struct Frame(IDXGIOutputDuplication);
@@ -122,6 +197,8 @@ impl Capture {
                 query: query.context("Missing GPU query")?,
                 texture: None,
                 size: [0; 2],
+                format: DXGI_FORMAT_UNKNOWN,
+                color: CaptureColor::Gamma,
             })
         }
     }
@@ -149,15 +226,12 @@ impl Capture {
             let mut desc = D3D11_TEXTURE2D_DESC::default();
             source.GetDesc(&mut desc);
             ensure!(desc.Width > 0 && desc.Height > 0, "Empty desktop texture");
-            ensure!(
-                desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM,
-                "Unexpected desktop texture format: {:?}",
-                desc.Format
-            );
-            ensure!(
-                self.texture.is_none() || self.size == [desc.Width, desc.Height],
-                "Desktop size changed; recreate capture before releasing its published texture"
-            );
+            let color = capture_color(desc.Format)?;
+            if self.texture.is_some()
+                && (self.size != [desc.Width, desc.Height] || self.format != desc.Format)
+            {
+                return Err(CaptureChanged.into());
+            }
             if self.texture.is_none() {
                 desc.Usage = D3D11_USAGE_DEFAULT;
                 desc.BindFlags = D3D11_BIND_SHADER_RESOURCE.0 as u32;
@@ -166,6 +240,19 @@ impl Capture {
                 self.device
                     .CreateTexture2D(&desc, None, Some(&mut self.texture))?;
                 self.size = [desc.Width, desc.Height];
+                self.format = desc.Format;
+                self.color = color;
+                println!(
+                    "Capture surface: {}x{}, {:?}, {}",
+                    self.size[0],
+                    self.size[1],
+                    desc.Format,
+                    if color == CaptureColor::Linear {
+                        "linear scRGB / HDR source"
+                    } else {
+                        "SDR gamma"
+                    }
+                );
             }
             self.context
                 .CopyResource(self.texture.as_ref().unwrap(), &source);
@@ -191,5 +278,56 @@ impl Capture {
             }
             Ok(true)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hdr_float_surface_uses_linear_submission_and_sdr_stays_gamma() {
+        // The user's crash/recovery log reports DXGI_FORMAT(10).
+        assert_eq!(
+            capture_color(DXGI_FORMAT(10)).unwrap(),
+            CaptureColor::Linear
+        );
+        assert_eq!(
+            capture_color(DXGI_FORMAT_B8G8R8A8_UNORM).unwrap(),
+            CaptureColor::Gamma
+        );
+        assert_eq!(
+            capture_color(DXGI_FORMAT_R8G8B8A8_UNORM).unwrap(),
+            CaptureColor::Gamma
+        );
+    }
+
+    #[test]
+    fn permanent_format_errors_do_not_enter_reconnect_loop() {
+        let error = capture_color(DXGI_FORMAT_UNKNOWN)
+            .unwrap_err()
+            .context("Frame capture");
+        assert!(!recoverable(&error));
+        assert!(!recoverable(&anyhow::anyhow!("GPU copy timed out")));
+    }
+
+    #[test]
+    fn desktop_and_device_changes_remain_recoverable_through_context() {
+        assert!(recoverable(
+            &anyhow::Error::new(CaptureChanged).context("Frame capture")
+        ));
+        for code in [
+            DXGI_ERROR_ACCESS_LOST,
+            DXGI_ERROR_DEVICE_REMOVED,
+            DXGI_ERROR_DEVICE_RESET,
+            windows::Win32::Foundation::E_ACCESSDENIED,
+        ] {
+            let error = anyhow::Error::new(windows::core::Error::from_hresult(code))
+                .context("Frame capture");
+            assert!(recoverable(&error));
+        }
+        assert!(!recoverable(
+            &windows::core::Error::from_hresult(windows::Win32::Foundation::E_INVALIDARG).into()
+        ));
     }
 }
