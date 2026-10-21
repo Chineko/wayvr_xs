@@ -3,13 +3,15 @@
 Branch: `feat/windows-steamvr`. Base: published tag `xs-v0.1.1`, commit
 `a24ca4257ca202578d28ece66ae84eaa0268be48`.
 
-**Status: port foundation only. There is no runnable Windows VR application or
-Windows installer yet.** The existing Arch packages remain Linux builds.
+**Status: first native Windows executable implemented; capture and headset
+acceptance are still pending.** This is a view-only prototype, not feature parity
+with the Linux app. See [Windows build/run instructions](../windows/README.md).
+The existing Arch packages remain Linux builds.
 
 The target is a native Windows SteamVR overlay with the same 5120×1440 ultrawide
 splits, quick controls, independent movement, saved placements, window mirrors
 and wrist media experience. The Linux feature and release branches are separate
-from this work. This branch has only the Windows core workflow; Linux and Arch
+from this work. This branch has only a Windows build workflow; Linux and Arch
 workflows remain on their Linux branches. It is not intended to merge into the
 Linux branch. User reports the Linux version runs well.
 
@@ -58,8 +60,14 @@ OpenXR support and Meta-only runtime support are not part of the first milestone
 - Invalid geometry, non-finite/out-of-range UV and empty monitors are rejected.
 - These coordinate helpers are not yet connected to a Windows capture/input API.
   Callers must establish per-monitor DPI awareness and supply physical bounds.
-- `.github/workflows/check-windows-core.yml` checks formatting, tests and Clippy
-  on native Windows only. It does **not** build the full VR application.
+- `windows/` now contains an independent native x64 application: DXGI/D3D11
+  monitor capture, a dynamically loaded SteamVR overlay backend, shared-texture
+  split presets, headset-yaw placement, console adjustment commands and recovery.
+  Controller input, saved profiles, wrist UI, window capture and cursor composition
+  remain future work. The Linux UI/rendering stack is not built on Windows.
+- `.github/workflows/check-windows-core.yml` builds and packages the native Windows
+  executable, checks formatting/Clippy and runs both Windows and shared-core tests.
+  It runs on Windows only. See `windows/README.md` for hardware test limitations.
 
 Run from the repository root:
 
@@ -75,20 +83,27 @@ SteamVR installation or Linux native libraries.
 
 ## Implementation sequence and acceptance gates
 
-1. **Make the application build for Windows.** Split target-specific manifests
+The first implementation uses a separate native application rather than
+compiling the embedded Linux compositor or its UI stack. The native release build
+and unit tests pass locally; real monitor enumeration found the 5120×1440 display.
+DXGI capture returned access denied in the restricted development session. The
+following hardware gates remain unverified.
+
+1. **Platform separation and parity.** Split target-specific manifests
    and modules. Port shared configuration/IPC boundaries and the renderer's
    platform-independent path. Keep unavailable features visibly unavailable;
    do not silently disable arbitrary behavior behind success-returning stubs.
-2. **One monitor in SteamVR.** Enumerate physical monitors, capture one using a
+2. **One monitor in SteamVR (implemented, needs hardware acceptance).** Enumerate physical monitors, capture one using a
    D3D11 device on the correct GPU, present it through a real SteamVR overlay,
    and handle lock/unlock, mode changes, device loss and clean shutdown.
    Gate: moving desktop is visible while a VR scene application is running.
-3. **Shared-capture ultrawide splits.** Reuse the region math and preset boundary
+3. **Shared-capture ultrawide splits (implemented, needs hardware acceptance).** Reuse the region math and preset boundary
    rules. Create independent overlay views from one capture and preserve physical
    aspect ratio. Gate: 5120×1440 halves, thirds and wide-center work; hiding one
    sibling does not stop the others; texture ownership stays valid until SteamVR
    finishes consuming it. Profile frame time and bandwidth, not just compilation.
-4. **Input and positioning.** Connect coordinate helpers to SendInput, preserve
+4. **Input and positioning.** Console positioning is implemented; controller input
+   and grabbing are pending. Connect coordinate helpers to SendInput, preserve
    virtual-desktop origins, handle mixed DPI and release held buttons on loss of
    focus/disconnect. Port controller grabbing and existing quick controls. Gate:
    clicks/scroll/drags hit the intended panel, including seams and edge pixels.
@@ -97,7 +112,8 @@ SteamVR installation or Linux native libraries.
 5. **Persistence, wrist UI and native app services.** Save/restore Windows monitor
    identities and panel placement. Port media sessions and artwork/progress,
    clipboard/keyboard and app-window selection with honest capabilities.
-6. **Distributable Windows build.** Add full-application Windows CI, package only
+6. **Distributable Windows build.** Native executable CI and a ZIP are implemented;
+   clean-machine and hardware acceptance remain. Package only
    required redistributable runtime files, and verify startup on a clean machine.
    Do not label core unit-test artifacts as a Windows app release.
 

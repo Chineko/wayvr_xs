@@ -1,10 +1,11 @@
-name: Check portable Windows core
+name: Build Windows SteamVR
 
 on:
   push:
     branches: [feat/windows-steamvr]
     paths:
       - 'xs-core/**'
+      - 'windows/**'
       - '.github/workflows/check-windows-core.yml'
   workflow_dispatch:
 
@@ -16,13 +17,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  portable-core:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Format
-        run: cargo fmt --manifest-path xs-core/Cargo.toml -- --check
+        run: cargo fmt --manifest-path windows/Cargo.toml -- --check
+      - name: Test Windows layout and placement
+        run: cargo test --locked --manifest-path windows/Cargo.toml
       - name: Test shared regions and Windows coordinate mapping
         run: cargo test --locked --manifest-path xs-core/Cargo.toml
       - name: Clippy
-        run: cargo clippy --locked --manifest-path xs-core/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --manifest-path windows/Cargo.toml --all-targets -- -D warnings
+      - name: Build native Windows executable
+        run: cargo build --release --locked --manifest-path windows/Cargo.toml
+      - name: Package
+        run: ./windows/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wayvr-xs-windows-x64
+          path: windows/dist/wayvr-xs-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
