@@ -1,5 +1,6 @@
 {
 	"EDIT_MODE": {
+		"QUICK": {"TITLE": "Quick panel controls", "NARROWER": "Width −5%", "WIDER": "Width +5%", "NEARER": "Nearer 10 cm", "FARTHER": "Farther 10 cm", "RECENTER": "Recenter panel"},
 		"STEREO_3D_MODE": {
 			"TITLE": "Modo Estéreo 3D",
 			"SPLIT_LEFT_RIGHT": "IZQ→DER",
@@ -50,7 +51,15 @@
 		"POS_STATIC": "Estático: No pertenece a ningún set, sin recentrar.",
 		"POSITIONING": "Posicionamiento",
 		"RESIZE_PRESS_AND_DRAG": "Redimensionar (presiona y arrastra)",
-		"RESIZE_CORNER": "Arrastrar para redimensionar"
+		"RESIZE_CORNER": "Arrastrar para redimensionar",
+		"SPLIT": {
+			"TITLE": "Split desktop",
+			"HELP": "Split your desktop into movable VR panels",
+			"FULL": "Full desktop",
+			"DUAL": "Two halves",
+			"THIRDS": "Three columns",
+			"CENTER": "Wide center"
+		}
 	},
 	"DEFINITIONS": {
 		"ANCHORED": "Anclado",
@@ -71,6 +80,10 @@
 		"CENTER": "Centro"
 	},
 	"BAR": {
+		"ADD_INTERACTIVE_WINDOW": "Add interactive app (KDE, foreground)",
+		"KDE_WINDOW_HELP": "Choose an app from any monitor in the VR window list. Clicking its overlay brings the app forward on your desktop.",
+		"ADD_APP_WINDOW": "Add app window (view-only)",
+		"APP_WINDOW_HELP": "Choose a Browser, Discord or another app window in the desktop picker. Window mirrors are view-only.",
 		"ADD_MIRROR": "Añadir nuevo overlay de espejo",
 		"ADD_NEW_SET": "Añadir nuevo set",
 		"CLOSE_APP": "Cerrar aplicación",

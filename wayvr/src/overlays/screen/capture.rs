@@ -2,6 +2,7 @@ use std::{
     os::fd::{AsRawFd, BorrowedFd, OwnedFd, RawFd},
     ptr::NonNull,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use glam::Affine3A;
@@ -34,6 +35,7 @@ const CURSOR_SIZE: f32 = 16. / 1440.;
 struct BufPass {
     pass: WGfxPass<Vert2Uv>,
     buf_vert: Arc<Buffer<Vert2Uv>>,
+    bound_image: Option<Arc<ImageView>>,
 }
 
 /// A render pipeline that supports mouse + stereo
@@ -219,7 +221,11 @@ impl ScreenPipeline {
             Scissor::from_viewport(extentf, offsetf),
         )?;
 
-        Ok(BufPass { pass, buf_vert })
+        Ok(BufPass {
+            pass,
+            buf_vert,
+            bound_image: None,
+        })
     }
 
     fn create_mouse_pass(
@@ -260,7 +266,11 @@ impl ScreenPipeline {
         )?;
 
         cmd_xfer.build_and_execute_now()?;
-        Ok(BufPass { pass, buf_vert })
+        Ok(BufPass {
+            pass,
+            buf_vert,
+            bound_image: None,
+        })
     }
 
     pub fn render(
@@ -288,9 +298,18 @@ impl ScreenPipeline {
         for (eye, cmd_buf) in rdr.cmd_bufs.iter_mut().enumerate() {
             let current = &mut self.pass[eye];
 
-            current
-                .pass
-                .update_sampler(0, image.clone(), app.gfx.texture_filter())?;
+            // Footer/cursor redraws can reuse the same captured texture. Its pixels may
+            // change in place, but the descriptor only needs updating for a new view.
+            if !current
+                .bound_image
+                .as_ref()
+                .is_some_and(|bound| Arc::ptr_eq(bound, &image))
+            {
+                current
+                    .pass
+                    .update_sampler(0, image.clone(), app.gfx.texture_filter())?;
+                current.bound_image = Some(image.clone());
+            }
 
             cmd_buf.run_ref(&current.pass)?;
         }
@@ -520,6 +539,7 @@ pub struct WlxCaptureIn {
     gfx: Arc<WGfx>,
     dma_exporter: Option<Arc<Mutex<MyFirstDmaExporter>>>,
     use_capture_queue: bool,
+    stats: Option<Mutex<CaptureStats>>,
 }
 
 impl WlxCaptureIn {
@@ -533,6 +553,8 @@ impl WlxCaptureIn {
             gfx: app.gfx.clone(),
             dma_exporter: dma_exporter.map(|exporter| Arc::new(Mutex::new(exporter))),
             use_capture_queue: app.gfx.has_capture_queue(),
+            stats: (std::env::var("WAYVR_CAPTURE_STATS").as_deref() == Ok("1"))
+                .then(|| Mutex::new(CaptureStats::default())),
         }
     }
 }
@@ -695,7 +717,69 @@ fn upload_image(
     Some(image)
 }
 
+/// Opt-in, bounded logging; measures CPU import time, not compositor/GPU latency.
+#[derive(Default)]
+struct CaptureStats {
+    start: Option<Instant>,
+    frames: u64,
+    failures: u64,
+    total: Duration,
+    peak: Duration,
+}
+
+impl CaptureStats {
+    fn record(
+        &mut self,
+        now: Instant,
+        elapsed: Duration,
+        success: bool,
+    ) -> Option<(f64, f64, f64, u64)> {
+        let start = *self.start.get_or_insert(now);
+        self.frames += 1;
+        self.failures += u64::from(!success);
+        self.total += elapsed;
+        self.peak = self.peak.max(elapsed);
+        let window = now.duration_since(start).as_secs_f64();
+        if window < 5.0 {
+            return None;
+        }
+        let result = (
+            (self.frames - self.failures) as f64 / window,
+            self.total.as_secs_f64() * 1000.0 / self.frames as f64,
+            self.peak.as_secs_f64() * 1000.0,
+            self.failures,
+        );
+        *self = Self {
+            start: Some(now),
+            ..Self::default()
+        };
+        Some(result)
+    }
+}
+
 pub(super) fn receive_callback(me: &WlxCaptureIn, frame: WlxFrame) -> Option<WlxCaptureOut> {
+    let start = me.stats.as_ref().map(|_| Instant::now());
+    let result = receive_callback_inner(me, frame);
+    if let (Some(stats), Some(start)) = (&me.stats, start) {
+        let end = Instant::now();
+        if let Ok(mut stats) = stats.lock()
+            && let Some((fps, avg, peak, failed)) =
+                stats.record(end, end.duration_since(start), result.is_some())
+        {
+            log::info!(
+                "Capture stats {}: {:.1} delivered FPS; CPU import avg {:.3} ms, max {:.3} ms; {} failed (5s+ window, not end-to-end latency)",
+                me.name,
+                fps,
+                avg,
+                peak,
+                failed
+            );
+        }
+    }
+    result
+}
+
+fn receive_callback_inner(me: &WlxCaptureIn, frame: WlxFrame) -> Option<WlxCaptureOut> {
     match frame {
         WlxFrame::Dmabuf(frame) => {
             if !frame.is_valid() {
@@ -987,3 +1071,48 @@ macro_rules! new_wlx_capture {
 }
 
 pub(super) use new_wlx_capture;
+
+#[cfg(test)]
+mod stats_tests {
+    use super::*;
+
+    #[test]
+    fn capture_stats_count_failures_and_reset_each_window() {
+        let start = Instant::now();
+        let mut stats = CaptureStats::default();
+        assert!(
+            stats
+                .record(start, Duration::from_millis(2), true)
+                .is_none()
+        );
+        assert!(
+            stats
+                .record(
+                    start + Duration::from_secs(2),
+                    Duration::from_millis(4),
+                    false
+                )
+                .is_none()
+        );
+        let (fps, avg, peak, failed) = stats
+            .record(
+                start + Duration::from_secs(5),
+                Duration::from_millis(3),
+                true,
+            )
+            .unwrap();
+        assert_eq!(fps, 0.4);
+        assert!((avg - 3.0).abs() < 0.0001);
+        assert_eq!(peak, 4.0);
+        assert_eq!(failed, 1);
+        let (fps, avg, peak, failed) = stats
+            .record(
+                start + Duration::from_secs(10),
+                Duration::from_millis(1),
+                true,
+            )
+            .unwrap();
+        assert_eq!(fps, 0.2);
+        assert_eq!((avg, peak, failed), (1.0, 1.0, 0));
+    }
+}

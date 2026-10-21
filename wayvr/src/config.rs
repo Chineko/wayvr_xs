@@ -189,6 +189,7 @@ pub struct AutoSettings {
     pub input_emulation_method: InputEmulationMethod,
     pub tutorial_graduated: bool,
     pub whisper_model: Arc<str>,
+    pub whisper_gpu: u32,
     pub default_overlay_scale: f32,
     pub color_palette: Arc<str>,
     pub snap_angle_deg: f32,
@@ -199,6 +200,7 @@ pub struct AutoSettings {
     pub default_opacity: f32,
     pub default_positioning: DefaultPositioning,
     pub middle_grabs_single: bool,
+    pub independent_panel_movement: bool,
 }
 
 fn get_settings_path() -> PathBuf {
@@ -265,6 +267,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
         input_emulation_method: config.input_emulation_method,
         tutorial_graduated: config.tutorial_graduated,
         whisper_model: config.whisper_model.clone(),
+        whisper_gpu: config.whisper_gpu,
         default_overlay_scale: config.default_overlay_scale,
         color_palette: config.color_palette.clone(),
         snap_angle_deg: config.snap_angle_deg,
@@ -275,6 +278,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
         default_opacity: config.default_opacity,
         default_positioning: config.default_positioning,
         middle_grabs_single: config.middle_grabs_single,
+        independent_panel_movement: config.independent_panel_movement,
     };
 
     let json = serde_json::to_string_pretty(&conf).unwrap(); // want panic
@@ -286,12 +290,35 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
 
 // Config that is saved after manipulating overlays
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AutoState {
+    pub app_panels: Vec<wlx_common::app_panel::SavedAppPanel>,
+    pub screen_splits: Vec<wlx_common::config::ScreenSplit>,
     pub sets: Vec<SerializedWindowSet>,
     pub spawn_overlays: Vec<Arc<str>>,
     pub last_set: u32,
     pub attribs: AStrMap<Vec<BackendAttribValue>>,
+}
+
+impl AutoState {
+    pub fn capture(config: &GeneralConfig) -> Self {
+        Self {
+            app_panels: config.app_panels.clone(),
+            screen_splits: config.screen_splits.clone(),
+            sets: config.sets.clone(),
+            last_set: config.last_set,
+            spawn_overlays: config.spawn_overlays.clone(),
+            attribs: config.attribs.clone(),
+        }
+    }
+    pub fn apply(self, config: &mut GeneralConfig) {
+        config.app_panels = self.app_panels;
+        config.screen_splits = self.screen_splits;
+        config.sets = self.sets;
+        config.last_set = self.last_set;
+        config.spawn_overlays = self.spawn_overlays;
+        config.attribs = self.attribs;
+    }
 }
 
 fn get_state_path() -> PathBuf {
@@ -301,12 +328,7 @@ fn get_state_path() -> PathBuf {
 }
 
 pub fn save_state(config: &GeneralConfig) -> anyhow::Result<()> {
-    let conf = AutoState {
-        sets: config.sets.clone(),
-        last_set: config.last_set,
-        spawn_overlays: config.spawn_overlays.clone(),
-        attribs: config.attribs.clone(),
-    };
+    let conf = AutoState::capture(config);
 
     let json = serde_json::to_string_pretty(&conf).unwrap(); // want panic
     std::fs::write(get_state_path(), json)?;

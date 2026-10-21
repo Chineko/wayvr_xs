@@ -4,7 +4,10 @@ use std::sync::{
 };
 
 use glam::{Affine2, Affine3A, Quat, Vec2, Vec3, vec3};
-use wlx_capture::{WlxCapture, pipewire::ScreenCastParams};
+use wlx_capture::{
+    WlxCapture,
+    pipewire::{ScreenCastParams, ScreenCastSources},
+};
 use wlx_common::{
     overlays::{BackendAttrib, BackendAttribValue},
     windowing::OverlayWindowState,
@@ -78,7 +81,23 @@ pub fn new_mirror_name() -> Arc<str> {
     format!("M-{}", MIRROR_COUNTER.fetch_add(1, Ordering::Relaxed)).into()
 }
 
+pub fn new_app_window_name() -> Arc<str> {
+    format!("Window-{}", MIRROR_COUNTER.fetch_add(1, Ordering::Relaxed)).into()
+}
+
 pub fn new_mirror(name: Arc<str>, app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
+    new_portal_mirror(name, app, ScreenCastSources::Any)
+}
+
+pub fn new_app_window(name: Arc<str>, app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
+    new_portal_mirror(name, app, ScreenCastSources::Windows)
+}
+
+fn new_portal_mirror(
+    name: Arc<str>,
+    app: &mut AppState,
+    sources: ScreenCastSources,
+) -> anyhow::Result<OverlayWindowConfig> {
     fn finalize_fn(
         name: Arc<str>,
         _: Vec2,
@@ -97,14 +116,23 @@ pub fn new_mirror(name: Arc<str>, app: &mut AppState) -> anyhow::Result<OverlayW
     let params = ScreenCastParams {
         token: None,
         embed_mouse: true,
-        screens_only: false,
+        sources,
         persist: false,
         allow_multiple: false,
     };
 
+    let description: Arc<str> = if sources == ScreenCastSources::Windows {
+        app.wgui_globals
+            .i18n()
+            .translate("BAR.APP_WINDOW_HELP")
+            .to_string()
+            .into()
+    } else {
+        "".into()
+    };
     let backend = ScreenCastBackend::new_raw(
         name.clone(),
-        "".into(),
+        description,
         Vec2::ZERO,
         Vec2::ZERO,
         params,

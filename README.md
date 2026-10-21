@@ -2,6 +2,11 @@
 
 # WayVR (previously WlxOverlay-S)
 
+**WayVR XS fork:** Adds independently movable desktop regions for ultrawide
+monitors, with two-panel, three-column, and wide-center presets. The first target
+is a 5120×1440 display on Arch Linux with WiVRn. See the
+[ultrawide build and usage guide](docs/XS-ULTRAWIDE.md).
+
 A lightweight OpenXR/OpenVR overlay for Wayland and X11 desktops.
 
 WayVR lets you access your desktop screens while in VR, and even launch apps directly in VR.

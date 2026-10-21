@@ -37,6 +37,8 @@
 		"RES_TITLE": "Auflösung"
 	},
 	"APP_SETTINGS": {
+		"INDEPENDENT_PANEL_MOVEMENT": "Independent panel movement",
+		"INDEPENDENT_PANEL_MOVEMENT_HELP": "Move screens, panels and the keyboard individually when grabbing. Disable to move anchored overlays together again. Existing positions and positioning modes are preserved.",
 		"ALLOW_SLIDING": "Stick-Interaktion beim Greifen",
 		"ANIMATION_SPEED": "UI-Animationsgeschwindigkeit",
 		"AUTOSTART_APPS": "Beim Start ausführen",
@@ -263,7 +265,9 @@
 		},
 		"TUTORIAL": "Tutorial",
 		"RESTART_WAYVR": "WayVR neu starten",
-		"CLOSE_WAYVR": "WayVR schließen"
+		"CLOSE_WAYVR": "WayVR schließen",
+		"SPEECH_TO_TEXT": "Sprache zu Text",
+		"WHISPER_GPU_SELECT": "GPU auswählen"
 	},
 	"APPLICATION_LAUNCHER": "Programmstarter",
 	"APPLICATION_STARTED": "Anwendung gestartet",
@@ -373,7 +377,9 @@
 		"TITLE": "Energieoptionen",
 		"SHUTDOWN": "Herunterfahren",
 		"SUSPEND": "Ruhezustand",
-		"SHUTDOWN_ARE_YOU_SURE": "Bist du sicher, dass du den Computer ausschalten willst?"
+		"SHUTDOWN_ARE_YOU_SURE": "Bist du sicher, dass du den Computer ausschalten willst?",
+		"NOT_SUPPORTED": "Energieoptionen erfordern systemd oder elogind.",
+		"SUSPEND_ARE_YOU_SURE": "Bist du sicher, dass du den Computer in den Ruhezustand versetzen willst?"
 	},
 	"YES": "Ja",
 	"NO": "Nein"

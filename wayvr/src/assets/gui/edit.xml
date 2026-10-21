@@ -38,10 +38,11 @@
                 <TopButton sticky="0" id="top_lock" src="@/edit/lock_open.svg" tooltip="EDIT_MODE.LOCK_INTERACTION" press="::EditModeToggleLock" />
                 <TopButton sticky="1" id="top_grab" src="@/edit/disable-grab.svg" tooltip="EDIT_MODE.DISABLE_GRAB" press="::EditModeToggleGrab" />
                 <TopButton sticky="0" id="top_pos" src="@/edit/anchor.svg" tooltip="EDIT_MODE.POSITIONING" press="::EditModeTab pos" />
-                <TopButton sticky="0" id="top_alpha" src="@/edit/fade.svg" tooltip="EDIT_MODE.OPACITY" press="::EditModeTab alpha" />
-                <TopButton sticky="0" id="top_curve" src="@/edit/curve.svg" tooltip="EDIT_MODE.ADJUST_CURVATURE" press="::EditModeTab curve" />
+                <TopButton sticky="0" id="top_quick" src="@/edit/resize.svg" tooltip="EDIT_MODE.QUICK.TITLE" press="::EditModeTab quick" />
+                <TopButton sticky="0" id="top_alpha" src="@/edit/fade.svg" tooltip="EDIT_MODE.ALPHA_BLEND_MODE" press="::EditModeTab alpha" />
                 <TopButton sticky="0" id="top_stereo" src="@/edit/3d.svg" tooltip="EDIT_MODE.STEREO_3D_MODE.TITLE" press="::EditModeTab stereo" />
                 <TopButton sticky="0" id="top_mouse" src="@/edit/normal.svg" tooltip="EDIT_MODE.MOUSE.TITLE" press="::EditModeTab mouse" />
+                <TopButton sticky="0" id="top_split" src="@/edit/screen.svg" tooltip="EDIT_MODE.SPLIT.TITLE" press="::EditModeTab split" />
                 <!-- TopButton sticky="0" id="top_move" src="@/edit/move-all.svg" tooltip="EDIT_MODE.MOVE_PRESS_AND_DRAG" / -->
                 <!-- TopButton sticky="0" id="top_resize" src="@/edit/resize.svg" tooltip="EDIT_MODE.RESIZE_PRESS_AND_DRAG" / -->
                 <TopButtonDanger src="@/edit/delete.svg" tooltip="EDIT_MODE.DELETE" release="::EditModeDelete" />
@@ -50,6 +51,21 @@
               </div>
               <div id="tab_none" display="none" height="100">
                 <label align="center" translation="EDIT_MODE.HINT_POINT_WINDOW" />
+              </div>
+              <div id="tab_quick" display="none" height="100" flex_direction="column" gap="8" align_items="center">
+                <div gap="8" justify_content="center" align_items="center">
+                  <Button padding="10" round="8" _press="::EditModeAdjust width_down"><label translation="EDIT_MODE.QUICK.NARROWER" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeAdjust width_up"><label translation="EDIT_MODE.QUICK.WIDER" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeAdjust nearer"><label translation="EDIT_MODE.QUICK.NEARER" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeAdjust farther"><label translation="EDIT_MODE.QUICK.FARTHER" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeAdjust recenter"><label translation="EDIT_MODE.QUICK.RECENTER" /></Button>
+                </div>
+                <div gap="16" justify_content="center" align_items="center">
+                  <label translation="EDIT_MODE.OPACITY" />
+                  <Slider id="alpha_slider" width="200" height="16" min_value="0.1" max_value="1" value="1" step="0.05" />
+                  <label translation="EDIT_MODE.CURVATURE" />
+                  <Slider id="curve_slider" width="200" height="16" min_value="0" max_value="0.5" value="0.15" step="0.01" />
+                </div>
               </div>
               <div id="tab_pos" display="none" height="100" flex_direction="column">
                 <div padding="8" gap="8" justify_content="center" align_items="center">
@@ -70,6 +86,15 @@
                     <CheckBox id="align_box" translation="EDIT_MODE.ALIGN_TO_HMD" tooltip_side="bottom" />
                     <CheckBox id="block_input_box" translation="EDIT_MODE.BLOCK_INPUT" tooltip_side="bottom" />
                   </div>
+                </div>
+              </div>
+              <div id="tab_split" display="none" height="100" flex_direction="column" align_items="center" gap="8">
+                <label translation="EDIT_MODE.SPLIT.HELP" />
+                <div gap="8" justify_content="center">
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout full"><label translation="EDIT_MODE.SPLIT.FULL" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout dual"><label translation="EDIT_MODE.SPLIT.DUAL" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout thirds"><label translation="EDIT_MODE.SPLIT.THIRDS" /></Button>
+                  <Button padding="10" round="8" _press="::EditModeScreenLayout center"><label translation="EDIT_MODE.SPLIT.CENTER" /></Button>
                 </div>
               </div>
               <div id="tab_stereo" display="none" height="100" flex_direction="column">
@@ -103,18 +128,8 @@
               </div>
               <div id="tab_alpha" display="none" height="100" padding="8" gap="8" justify_content="center" align_items="center">
                 <div width="100%" padding="8" gap="8" justify_content="center" align_items="center">
-                  <label translation="EDIT_MODE.OPACITY" />
-                  <Slider id="alpha_slider" width="200" height="16" min_value="0.1" max_value="1" value="1" step="0.05" />
-                </div>
-                <div width="100%" padding="8" gap="8" justify_content="center" align_items="center">
                   <CheckBox id="additive_box" translation="EDIT_MODE.BLENDING_ADDITIVE" tooltip="EDIT_MODE.ALPHA_BLEND_MODE" tooltip_side="bottom" />
                   <CheckBox id="angle_fade_box" translation="EDIT_MODE.ANGLE_FADE" tooltip="EDIT_MODE.ANGLE_FADE_HELP" tooltip_side="bottom" />
-                </div>
-              </div>
-              <div id="tab_curve" display="none" height="100" flex_direction="column">
-                <div padding="8" gap="8" justify_content="center" align_items="center">
-                  <label translation="EDIT_MODE.CURVATURE" />
-                  <Slider id="curve_slider" width="250" height="16" min_value="0" max_value="0.5" value="0.15" step="0.01" />
                 </div>
               </div>
             </div>

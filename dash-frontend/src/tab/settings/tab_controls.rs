@@ -117,6 +117,7 @@ impl State {
 		options_dropdown::<wlx_common::config::HandsfreeAltTab>(par.mp, c, &SettingType::HandsfreeAltTab)?;
 		options_checkbox(par.mp, c, SettingType::FocusFollowsMouseMode)?;
 		options_checkbox(par.mp, c, SettingType::LeftHandedMouse)?;
+		options_checkbox(par.mp, c, SettingType::IndependentPanelMovement)?;
 		options_checkbox(par.mp, c, SettingType::MiddleGrabsSingle)?;
 		options_checkbox(par.mp, c, SettingType::AllowSliding)?;
 		options_checkbox(par.mp, c, SettingType::InvertScrollDirectionX)?;

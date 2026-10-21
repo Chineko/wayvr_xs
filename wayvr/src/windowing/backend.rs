@@ -159,6 +159,23 @@ pub enum OverlayEventData {
 }
 
 pub trait OverlayBackend: Any {
+    /// Native capture extent, excluding presentation controls.
+    fn screen_content_extent(&mut self) -> Option<[u32; 2]> {
+        self.frame_meta().map(|meta| meta.extent)
+    }
+
+    /// Physical screen identity; absent on mirrors and other non-desktop backends.
+    fn screen_source(&self) -> Option<Arc<str>> {
+        None
+    }
+    /// New rendering state over the same capture stream.
+    fn screen_region(
+        &self,
+        _region: wlx_common::screen_region::ScreenRegion,
+    ) -> Option<Box<dyn OverlayBackend>> {
+        None
+    }
+
     /// Called once, before the first frame is rendered
     fn init(&mut self, app: &mut AppState) -> anyhow::Result<()>;
     fn pause(&mut self, app: &mut AppState) -> anyhow::Result<()>;
@@ -185,6 +202,11 @@ pub trait OverlayBackend: Any {
     fn on_pointer(&mut self, app: &mut AppState, hit: &PointerHit, pressed: bool);
     fn on_scroll(&mut self, app: &mut AppState, hit: &PointerHit, delta: WheelDelta);
     fn get_interaction_transform(&mut self) -> Option<Affine2>;
+    /// Local pose of the hit surface relative to the saved overlay pose.
+    /// Its scale is the physical width, including for curved surfaces.
+    fn interaction_pose(&self) -> Affine3A {
+        Affine3A::IDENTITY
+    }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue>;
     fn set_attrib(&mut self, app: &mut AppState, value: BackendAttribValue) -> bool;
 }

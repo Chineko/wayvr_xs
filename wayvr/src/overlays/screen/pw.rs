@@ -13,7 +13,10 @@ use wgui::{
 };
 use wlx_capture::{
     WlxCapture,
-    pipewire::{ScreenCastParams, ScreenCastRequestId, ScreenCastResult, capture::PipewireCapture},
+    pipewire::{
+        ScreenCastParams, ScreenCastRequestId, ScreenCastResult, ScreenCastSources,
+        capture::PipewireCapture,
+    },
     wayland::WlxOutput,
 };
 use wlx_common::{astr_containers::AStrMapExt, overlays::ToastTopic};
@@ -25,6 +28,7 @@ use crate::{
     backend::task::{OverlayTask, TaskType},
     gui::panel::{GuiPanel, NewGuiPanelParams},
     overlays::{
+        edit::EditModeBackendWrapper,
         screen::{
             backend::CaptureType,
             capture::{WlxCaptureIn, WlxCaptureOut},
@@ -33,10 +37,7 @@ use crate::{
     },
     state::{AppState, save_pw_token_config},
     subsystem::dbus::DbusConnector,
-    windowing::{
-        OverlaySelector,
-        backend::{DummyBackend, OverlayBackend},
-    },
+    windowing::{OverlaySelector, backend::OverlayBackend},
 };
 
 use super::{backend::ScreenBackend, capture::new_wlx_capture};
@@ -93,7 +94,7 @@ impl ScreenCastBackend {
         let params = ScreenCastParams {
             token,
             embed_mouse: true,
-            screens_only: true,
+            sources: ScreenCastSources::Monitors,
             persist: true,
             allow_multiple: false,
         };
@@ -142,7 +143,7 @@ impl ScreenCastBackend {
         let params = ScreenCastParams {
             token,
             embed_mouse: true,
-            screens_only: true,
+            sources: ScreenCastSources::Monitors,
             persist: true,
             allow_multiple: false,
         };
@@ -347,13 +348,11 @@ fn check(mut par: CheckParams, finalize_fn: ScreenCastFinalizeFn) {
                         let capture =
                             new_wlx_capture!(app, PipewireCapture::new(par.name.clone(), node_id));
 
-                        owc.backend =
+                        let backend = EditModeBackendWrapper::content_backend_mut(&mut owc.backend);
+                        *backend =
                             finalize_fn(par.name, par.logical_pos, par.logical_size, capture, app);
 
-                        let _ = owc
-                            .backend
-                            .init(app)
-                            .log_err("Failed to init ScreenBackend");
+                        let _ = backend.init(app).log_err("Failed to init ScreenBackend");
                     }),
                 )));
             }
@@ -454,11 +453,13 @@ fn update_status_hack(
         OverlaySelector::Name(name.clone()),
         Box::new({
             move |_app, owc| {
-                let backend =
-                    std::mem::replace(&mut owc.backend, Box::new(DummyBackend {})) as Box<dyn Any>;
-                let mut backend = backend
-                    .downcast::<ScreenCastBackend>()
-                    .expect("Wrong type to unwrap");
+                let backend = EditModeBackendWrapper::content_backend_mut(&mut owc.backend);
+                let Some(backend) =
+                    (backend.as_mut() as &mut dyn Any).downcast_mut::<ScreenCastBackend>()
+                else {
+                    // A queued status update can outlive portal completion.
+                    return;
+                };
                 {
                     let Ok(mut label) = backend
                         .panel
@@ -474,7 +475,6 @@ fn update_status_hack(
                     };
                     label.set_text(&mut common, Translation::from_translation_key(message));
                 }
-                let _ = std::mem::replace(&mut owc.backend, backend);
             }
         }),
     )));

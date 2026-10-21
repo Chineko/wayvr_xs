@@ -41,7 +41,7 @@ use crate::{
     windowing::{
         OverlayID, OverlaySelector,
         backend::{DummyBackend, OverlayBackend, OverlayEventData, RenderResources, ShouldRender},
-        window::OverlayWindowConfig,
+        window::{OverlayWindowConfig, save_transform, scalar_scale},
     },
 };
 
@@ -172,7 +172,28 @@ pub struct EditModeBackendWrapper {
     can_render_inner: bool,
 }
 
+impl EditModeBackendWrapper {
+    /// Access the content without removing an active edit panel. Portal
+    /// completion can replace the content while the pointer is editing it.
+    pub(crate) fn content_backend_mut(
+        backend: &mut Box<dyn OverlayBackend>,
+    ) -> &mut Box<dyn OverlayBackend> {
+        if (backend.as_ref() as &dyn Any).is::<Self>() {
+            let wrapper = (backend.as_mut() as &mut dyn Any)
+                .downcast_mut::<Self>()
+                .expect("Edit wrapper type already checked");
+            &mut wrapper.inner
+        } else {
+            backend
+        }
+    }
+}
+
 impl OverlayBackend for EditModeBackendWrapper {
+    fn screen_content_extent(&mut self) -> Option<[u32; 2]> {
+        self.inner.screen_content_extent()
+    }
+
     fn init(&mut self, app: &mut crate::state::AppState) -> anyhow::Result<()> {
         self.inner.init(app)?;
         self.panel.init(app)
@@ -344,6 +365,18 @@ impl OverlayBackend for EditModeBackendWrapper {
     fn get_interaction_transform(&mut self) -> Option<glam::Affine2> {
         self.inner.get_interaction_transform()
     }
+    fn interaction_pose(&self) -> glam::Affine3A {
+        self.inner.interaction_pose()
+    }
+    fn screen_source(&self) -> Option<std::sync::Arc<str>> {
+        self.inner.screen_source()
+    }
+    fn screen_region(
+        &self,
+        region: wlx_common::screen_region::ScreenRegion,
+    ) -> Option<Box<dyn OverlayBackend>> {
+        self.inner.screen_region(region)
+    }
     fn get_attrib(&self, attrib: BackendAttrib) -> Option<BackendAttribValue> {
         self.inner.get_attrib(attrib)
     }
@@ -387,6 +420,42 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
                 let button = button.clone();
 
                 let callback: EventCallback<AppState, EditModeState> = match command {
+                    "::EditModeAdjust" => {
+                        let action = args.next().unwrap().to_owned();
+                        Box::new(move |_common, data, app, state| {
+                            if !test_button(data) || !test_duration(&button, app) {
+                                return Ok(EventResult::Pass);
+                            }
+                            let action = action.clone();
+                            app.tasks.enqueue(TaskType::Overlay(OverlayTask::Modify(
+                                OverlaySelector::Id(*state.id.borrow()),
+                                Box::new(move |app, owc| {
+                                    apply_quick_action(app, owc, &action);
+                                }),
+                            )));
+                            Ok(EventResult::Consumed)
+                        })
+                    }
+                    "::EditModeScreenLayout" => {
+                        let layout = match args.next() {
+                            Some("dual") => wlx_common::config::ScreenLayout::Dual,
+                            Some("thirds") => wlx_common::config::ScreenLayout::Thirds,
+                            Some("center") => wlx_common::config::ScreenLayout::Center,
+                            _ => wlx_common::config::ScreenLayout::Full,
+                        };
+                        Box::new(move |_common, data, app, state| {
+                            if !test_button(data) || !test_duration(&button, app) {
+                                return Ok(EventResult::Pass);
+                            }
+                            app.tasks
+                                .enqueue(TaskType::Overlay(OverlayTask::ScreenLayout(
+                                    OverlaySelector::Id(*state.id.borrow()),
+                                    layout,
+                                    false,
+                                )));
+                            Ok(EventResult::Consumed)
+                        })
+                    }
                     "::EditModeToggleLock" => Box::new(move |common, data, app, state| {
                         if !test_button(data) || !test_duration(&button, app) {
                             return Ok(EventResult::Pass);
@@ -539,7 +608,7 @@ fn make_edit_panel(app: &mut AppState) -> anyhow::Result<EditModeWrapPanel> {
     panel.state.lock = InteractLockHandler::new(&mut panel)?;
     panel.state.tabs = ButtonPaneTabSwitcher::new(
         &mut panel,
-        &["none", "pos", "alpha", "curve", "stereo", "mouse"],
+        &["none", "quick", "pos", "alpha", "stereo", "mouse", "split"],
     )?;
 
     set_up_checkbox(&mut panel, "additive_box", cb_assign_additive)?;
@@ -622,6 +691,11 @@ fn reset_panel(
     panel.state.pos.reset(&mut com, &state.positioning.into());
     panel.state.lock.reset(&mut com, state.interactable);
     panel.state.tabs.reset(&mut com);
+    panel.state.tabs.tab_button_clicked(&mut com, "quick");
+    panel
+        .state
+        .tabs
+        .set_tab_visible(&mut com, "split", owc.backend.screen_source().is_some());
 
     if let Some(stereo) = attrib_value!(
         owc.backend.get_attrib(BackendAttrib::Stereo),
@@ -832,4 +906,142 @@ pub fn resize_centered_from_uv(grab_uv: Vec2, cur_uv: Vec2, cur_extent: [u32; 2]
     out = out.max(MIN_SIZE);
 
     [out.x.round() as u32, out.y.round() as u32]
+}
+
+/// Shared by edit mode and the interactive panel's compact controls.
+pub fn apply_quick_action(app: &mut AppState, owc: &mut OverlayWindowConfig, action: &str) {
+    let Some(state) = owc.active_state.as_mut() else {
+        return;
+    };
+    match action {
+        "opacity_down" | "opacity_up" => {
+            let alpha =
+                (state.alpha + if action == "opacity_up" { 0.1 } else { -0.1 }).clamp(0.1, 1.);
+            cb_assign_alpha(app, owc, alpha);
+        }
+        "curve_down" | "curve_up" => {
+            let curve = (state.curvature.unwrap_or(0.)
+                + if action == "curve_up" { 0.05 } else { -0.05 })
+            .clamp(0., 0.5);
+            cb_assign_curve(app, owc, curve);
+        }
+        "pin" => {
+            state.grabbable = !state.grabbable;
+            owc.dirty = true;
+        }
+        _ => {
+            adjust_panel(&mut state.transform, &app.input_state.hmd, action);
+            save_transform(state, app);
+            owc.dirty = true;
+        }
+    }
+}
+
+/// Adjust only this panel, retaining its positioning mode and capture region.
+fn adjust_panel(transform: &mut glam::Affine3A, hmd: &glam::Affine3A, action: &str) {
+    let scale = scalar_scale(transform);
+    if !scale.is_finite() || scale <= f32::EPSILON {
+        return;
+    }
+    match action {
+        "width_down" | "width_up" => {
+            let factor = if action == "width_up" { 1.05 } else { 0.95 };
+            transform.matrix3 = transform
+                .matrix3
+                .mul_scalar((scale * factor).clamp(0.1, 20.0) / scale);
+        }
+        "nearer" | "farther" | "recenter" => {
+            let offset = transform.translation - hmd.translation;
+            let distance = offset.length();
+            if !distance.is_finite() {
+                return;
+            }
+            let forward = -hmd.z_axis.normalize();
+            let direction = if action == "recenter" || distance < 0.001 {
+                forward
+            } else {
+                offset / distance
+            };
+            let delta = match action {
+                "nearer" => -0.1,
+                "farther" => 0.1,
+                _ => 0.0,
+            };
+            transform.translation =
+                hmd.translation + direction * (distance + delta).clamp(0.25, 20.0);
+            if action == "recenter" {
+                transform.matrix3 = hmd.matrix3.mul_scalar(scale);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod quick_control_tests {
+    use super::adjust_panel;
+    use glam::{Affine3A, Quat, Vec3, Vec3A};
+
+    #[test]
+    fn width_changes_preserve_position_and_clamp_scale() {
+        let mut panel = Affine3A::from_scale_rotation_translation(
+            Vec3::splat(19.9),
+            Quat::from_rotation_y(0.4),
+            Vec3::new(1.0, 2.0, -3.0),
+        );
+        let original = panel;
+        adjust_panel(&mut panel, &Affine3A::IDENTITY, "width_up");
+        assert!((panel.x_axis.length() - 20.0).abs() < 0.001);
+        assert_eq!(panel.translation, original.translation);
+        assert!(
+            panel
+                .x_axis
+                .normalize()
+                .abs_diff_eq(original.x_axis.normalize(), 0.001)
+        );
+        for _ in 0..200 {
+            adjust_panel(&mut panel, &Affine3A::IDENTITY, "width_down");
+        }
+        assert!((panel.x_axis.length() - 0.1).abs() < 0.001);
+    }
+
+    #[test]
+    fn distance_preserves_direction_and_handles_coincident_panel() {
+        let hmd = Affine3A::from_translation(Vec3::new(2.0, 1.6, 1.0));
+        let mut panel = hmd;
+        adjust_panel(&mut panel, &hmd, "nearer");
+        assert!(
+            panel
+                .translation
+                .abs_diff_eq(hmd.translation - Vec3A::Z * 0.25, 0.001)
+        );
+        let orientation = panel.matrix3;
+        adjust_panel(&mut panel, &hmd, "farther");
+        assert!((panel.translation.distance(hmd.translation) - 0.35).abs() < 0.001);
+        assert_eq!(panel.matrix3, orientation);
+    }
+
+    #[test]
+    fn recenter_preserves_size_and_distance_with_rotated_head() {
+        let hmd = Affine3A::from_rotation_translation(
+            Quat::from_rotation_y(0.7),
+            Vec3::new(3.0, 1.6, -1.0),
+        );
+        let mut panel = Affine3A::from_scale_rotation_translation(
+            Vec3::splat(2.0),
+            Quat::IDENTITY,
+            Vec3::new(5.0, 1.6, -1.0),
+        );
+        adjust_panel(&mut panel, &hmd, "recenter");
+        assert!(
+            panel
+                .translation
+                .abs_diff_eq(hmd.translation - hmd.z_axis * 2.0, 0.001)
+        );
+        assert!(
+            panel
+                .matrix3
+                .abs_diff_eq(hmd.matrix3.mul_scalar(2.0), 0.001)
+        );
+    }
 }

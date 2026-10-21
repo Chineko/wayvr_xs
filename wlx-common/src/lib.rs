@@ -1,5 +1,6 @@
 use strum::{EnumIs, EnumString};
 
+pub mod app_panel;
 pub mod astr_containers;
 pub mod async_executor;
 pub mod audio;
@@ -17,6 +18,7 @@ pub mod openxr_bindings_schema;
 pub mod openxr_controller_profiles;
 pub mod overlays;
 pub mod palette;
+pub mod screen_region;
 pub mod timestep;
 pub mod windowing;
 

@@ -36,11 +36,14 @@ impl DeviceList {
                 }
 
                 layout.remove_children(devices_root);
+                let mut visible = false;
 
                 for (i, device) in app.input_state.devices.iter().enumerate() {
                     let mut params = TemplateParams::new();
 
-                    if matches!(device.role, TrackedDeviceRole::None) {
+                    if matches!(device.role, TrackedDeviceRole::None)
+                        || !device.soc.is_some_and(f32::is_finite)
+                    {
                         continue;
                     }
 
@@ -54,6 +57,10 @@ impl DeviceList {
                         devices_root,
                         params,
                     )?;
+                    visible = true;
+                }
+                if let Ok(strip) = parser_state.get_widget_id("battery_strip") {
+                    layout.alterables.set_widget_visible(strip, visible);
                 }
                 elements_changed = true;
             }

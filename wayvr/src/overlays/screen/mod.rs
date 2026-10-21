@@ -17,6 +17,10 @@ use wlx_common::DesktopBackend;
 
 pub mod backend;
 pub mod capture;
+mod controls;
+mod geometry;
+#[cfg(feature = "wayland")]
+pub mod kde;
 #[cfg(feature = "wayland")]
 pub mod mirror;
 #[cfg(feature = "pipewire")]
@@ -60,7 +64,7 @@ fn create_screen_from_backend(
             ..OverlayWindowState::default()
         },
         input_focus: Some(InputFocus::PhysicalScreen),
-        ..OverlayWindowConfig::from_backend(backend)
+        ..OverlayWindowConfig::from_backend(Box::new(controls::ScreenControls::new(backend)))
     }
 }
 

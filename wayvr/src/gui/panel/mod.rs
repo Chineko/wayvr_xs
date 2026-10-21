@@ -50,6 +50,22 @@ pub mod set_list;
 
 const DEFAULT_MAX_SIZE: f32 = 2048.0;
 
+pub fn pointer_in_regions(layout: &Layout, regions: &[WidgetID], pos: Vec2) -> bool {
+    regions.is_empty()
+        || regions.iter().any(|id| {
+            let Some(node) = layout.state.nodes.get(*id) else {
+                return false;
+            };
+            if !wgui::widget::is_node_visible(&layout.state.tree, *node) {
+                return false;
+            }
+            layout.state.widgets.get(*id).is_some_and(|widget| {
+                let boundary = widget.state().data.cached_absolute_boundary;
+                boundary.size.x > 0. && boundary.size.y > 0. && boundary.contains_point(pos)
+            })
+        })
+}
+
 pub type OnNotifyFunc<S> =
     Box<dyn Fn(&mut GuiPanel<S>, &mut AppState, OverlayEventData) -> anyhow::Result<()>>;
 pub type OnLifetimeUpdateFunc<S> = Box<dyn FnMut(&mut GuiPanel<S>, OverlayLifetimeUpdate)>;
@@ -66,6 +82,8 @@ pub struct GuiPanel<S> {
     pub initialized: bool,
     pub doc_extra: Option<ParseDocumentExtra>,
     pub extra_attribs: IdMap<BackendAttrib, BackendAttribValue>,
+    /// Optional visible surfaces within a canvas with reserved transparent space.
+    pub hit_regions: Vec<WidgetID>,
     interaction_transform: Option<Affine2>,
     context: WguiContext,
     timestep: Timestep,
@@ -187,6 +205,7 @@ impl<S: 'static> GuiPanel<S> {
             doc_extra: Some(doc_params.extra),
             custom_elems,
             extra_attribs: Default::default(),
+            hit_regions: Vec::new(),
             context_menu: Default::default(),
             on_custom_attrib: params.on_custom_attrib,
             on_custom_attrib_inner,
@@ -403,7 +422,12 @@ impl<S: 'static> OverlayBackend for GuiPanel<S> {
         let result = self.push_event(app, e);
 
         HoverResult {
-            consume: result != EventResult::NoHit,
+            consume: result != EventResult::NoHit
+                && pointer_in_regions(
+                    &self.layout,
+                    &self.hit_regions,
+                    hit.uv * self.layout.content_size,
+                ),
             haptics: self
                 .layout
                 .check_toggle_haptics_triggered()

@@ -30,6 +30,8 @@ anyhow.workspace = true
 chrono = { workspace = true, features = ["unstable-locales"] }
 clap.workspace = true
 dbus.workspace = true
+ureq = "3.3.0"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 glam = { workspace = true, features = ["mint", "serde"] }
 idmap = { workspace = true, features = ["serde"] }
 idmap-derive.workspace = true
@@ -54,6 +56,7 @@ strum.workspace = true
 tracing-subscriber.workspace = true
 uuid = { workspace = true }
 wayland-client = { workspace = true }
+wayland-scanner = { version = "0.31.10", optional = true }
 wayland-protocols = { workspace = true }
 wayland-protocols-misc = { workspace = true }
 winit = { workspace = true, optional = true }
@@ -138,7 +141,7 @@ openxr = ["dep:libmonado", "dep:openxr", "dep:prost"]
 osc = ["dep:rosc"]
 pipewire = ["wlx-capture/pipewire"]
 uidev = ["dep:winit"]
-wayland = ["pipewire", "wlx-capture/wlr", "xkbcommon/wayland"]
+wayland = ["dep:wayland-scanner", "pipewire", "wlx-capture/wlr", "xkbcommon/wayland"]
 whisper = [
   "dep:calloop",
   "dep:calloop-wayland-source",

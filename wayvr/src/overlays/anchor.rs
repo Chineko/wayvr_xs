@@ -61,7 +61,7 @@ pub fn create_grab_help(app: &mut AppState) -> anyhow::Result<OverlayWindowConfi
         id_follow,
     ];
 
-    panel.on_notify = Some(Box::new(move |panel, _app, event_data| {
+    panel.on_notify = Some(Box::new(move |panel, app, event_data| {
         let mut alterables = EventAlterables::default();
 
         let OverlayEventData::OverlayGrabbed { name, pos, editing } = event_data else {
@@ -72,7 +72,7 @@ pub fn create_grab_help(app: &mut AppState) -> anyhow::Result<OverlayWindowConfi
             Positioning::Static => id_static,
             Positioning::Floating => id_floating,
             Positioning::Anchored => {
-                if editing {
+                if editing || app.session.config.independent_panel_movement {
                     id_anchored_edit
                 } else {
                     id_anchored

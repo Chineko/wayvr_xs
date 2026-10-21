@@ -141,6 +141,7 @@ pub struct TabSettings<T> {
 	tasks: Tasks<Task>,
 	marker: PhantomData<T>,
 	frontend_tasks: FrontendTasks,
+	feats: InterfaceFeats,
 }
 
 impl<T> Tab<T> for TabSettings<T> {
@@ -345,6 +346,7 @@ pub(crate) enum SettingType {
 	NotificationsSoundEnabled,
 	OpaqueBackground,
 	MiddleGrabsSingle,
+	IndependentPanelMovement,
 	MouseAcceleration,
 	PointerLerpFactor,
 	MouseSpeed,
@@ -402,6 +404,7 @@ impl SettingType {
 			Self::NotificationsSoundEnabled => &mut config.notifications_sound_enabled,
 			Self::OpaqueBackground => &mut config.opaque_background,
 			Self::MiddleGrabsSingle => &mut config.middle_grabs_single,
+			Self::IndependentPanelMovement => &mut config.independent_panel_movement,
 			Self::MouseAcceleration => &mut config.wvr_mouse_acceleration,
 			Self::ScreenRenderDown => &mut config.screen_render_down,
 			Self::SetsOnWatch => &mut config.sets_on_watch,
@@ -553,6 +556,7 @@ impl SettingType {
 			Self::NotificationsSoundEnabled => Ok("APP_SETTINGS.NOTIFICATIONS_SOUND_ENABLED"),
 			Self::OpaqueBackground => Ok("APP_SETTINGS.OPAQUE_BACKGROUND"),
 			Self::MiddleGrabsSingle => Ok("APP_SETTINGS.MIDDLE_GRABS_SINGLE"),
+			Self::IndependentPanelMovement => Ok("APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT"),
 			Self::MouseSpeed => Ok("APP_SETTINGS.POINTER_SPEED"),
 			Self::MouseAcceleration => Ok("APP_SETTINGS.POINTER_ACCELERATION"),
 			Self::PointerLerpFactor => Ok("APP_SETTINGS.POINTER_LERP_FACTOR"),
@@ -603,6 +607,7 @@ impl SettingType {
 			Self::KeyboardMiddleClick => Some("APP_SETTINGS.KEYBOARD_MIDDLE_CLICK_HELP"),
 			Self::LeftHandedMouse => Some("APP_SETTINGS.LEFT_HANDED_MOUSE_HELP"),
 			Self::MiddleGrabsSingle => Some("APP_SETTINGS.MIDDLE_GRABS_SINGLE_HELP"),
+			Self::IndependentPanelMovement => Some("APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT_HELP"),
 			Self::MouseAcceleration => Some("APP_SETTINGS.POINTER_ACCELERATION_HELP"),
 			Self::ScreenRenderDown => Some("APP_SETTINGS.SCREEN_RENDER_DOWN_HELP"),
 			Self::SnapAngleDeg => Some("APP_SETTINGS.SNAP_ANGLE_DEG_HELP"),
@@ -697,10 +702,14 @@ impl<T> TabSettings<T> {
 	fn set_tab(&mut self, frontend: &mut Frontend<T>, data: &mut T, name: TabNameEnum) -> anyhow::Result<()> {
 		let root = self.state.get_widget_id("settings_root")?;
 		frontend.layout.remove_children(root);
-		let globals = frontend.layout.state.globals.clone();
 		self.current_tab = None;
+		let globals = frontend.layout.state.globals.clone();
 
-		let feats = frontend.interface.get_feats(data);
+		let vulkan_devices = if matches!(name, TabNameEnum::Features) {
+			Some(frontend.interface.enumerate_vulkan_devices(data)?)
+		} else {
+			None
+		};
 
 		let mut mp = MacroParams {
 			layout: &mut frontend.layout,
@@ -709,14 +718,14 @@ impl<T> TabSettings<T> {
 			config: frontend.interface.general_config(data),
 			tasks: self.tasks.clone(),
 			idx: 9001,
-			feats,
+			feats: self.feats,
 		};
 
 		let settings_mount_params = SettingsMountParams {
 			mp: &mut mp,
 			id_parent: root,
 			frontend_tasks: &self.frontend_tasks,
-			feats,
+			feats: self.feats,
 		};
 
 		match name {
@@ -724,7 +733,10 @@ impl<T> TabSettings<T> {
 				self.current_tab = Some(Box::new(tab_look_and_feel::State::mount(settings_mount_params)?));
 			}
 			TabNameEnum::Features => {
-				self.current_tab = Some(Box::new(tab_features::State::mount(settings_mount_params)?));
+				self.current_tab = Some(Box::new(tab_features::State::mount(
+					settings_mount_params,
+					vulkan_devices.unwrap(), /* safe */
+				)?));
 			}
 			TabNameEnum::SpaceDrag => {
 				self.current_tab = Some(Box::new(tab_space_drag::State::mount(settings_mount_params)?));
@@ -790,6 +802,8 @@ impl<T> TabSettings<T> {
 
 		tasks.push(Task::SetTab(TabNameEnum::LookAndFeel));
 
+		let feats = frontend.interface.get_feats(data);
+
 		Ok(Self {
 			app_button_ids: Vec::new(),
 			tasks,
@@ -798,6 +812,24 @@ impl<T> TabSettings<T> {
 			context_menu: ContextMenu::default(),
 			current_tab: None,
 			frontend_tasks: frontend.tasks.clone(),
+			feats,
 		})
+	}
+}
+
+#[cfg(test)]
+mod independent_movement_tests {
+	use super::SettingType;
+	use wlx_common::config::GeneralConfig;
+
+	#[test]
+	fn independent_toggle_defaults_off_and_round_trips() {
+		let mut config: GeneralConfig = serde_json::from_str("{}").unwrap();
+		assert!(!config.independent_panel_movement);
+		*SettingType::IndependentPanelMovement.mut_bool(&mut config) = true;
+		let saved = serde_json::to_string(&config).unwrap();
+		let restored: GeneralConfig = serde_json::from_str(&saved).unwrap();
+		assert!(restored.independent_panel_movement);
+		assert!(!restored.middle_grabs_single);
 	}
 }

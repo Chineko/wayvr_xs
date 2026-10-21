@@ -55,7 +55,6 @@ pub struct OverlayWindowManager<T> {
     /// The set that will be restored by show_hide.
     /// Usually the same as current_set, except it keeps its value when current_set is hidden.
     restore_set: usize,
-    anchor_local: Affine3A,
     watch_id: OverlayID,
     keyboard_id: OverlayID,
     edit_mode: bool,
@@ -75,7 +74,6 @@ where
             restore_set: 0,
             sets: vec![OverlayWindowSet::default()],
             global_set: OverlayWindowSet::default(),
-            anchor_local: Affine3A::from_translation(Vec3::NEG_Z),
             watch_id: OverlayID::null(),    // set down below
             keyboard_id: OverlayID::null(), // set down below
             edit_mode: false,
@@ -159,7 +157,44 @@ where
 
         // overwrite default layout with saved layout, if exists
         me.restore_layout(app);
+        // Saved split sources may be hidden. Initialize their portal requests even
+        // before the render loop sees a visible source window.
+        for split in app.session.config.screen_splits.clone() {
+            if let Some(id) = me.lookup(&split.source) {
+                me.overlays[id].init(app)?;
+            }
+        }
         me.overlays_changed(app)?;
+
+        #[cfg(feature = "wayland")]
+        for saved in app.session.config.app_panels.clone() {
+            if me.lookup(&saved.name).is_some() {
+                continue;
+            }
+            let mut config =
+                match crate::overlays::screen::kde::new_interactive_window(saved.name.clone(), app)
+                {
+                    Ok(config) => config,
+                    Err(error) => {
+                        log::warn!("Could not restore app panel {}: {error}", saved.name);
+                        continue;
+                    }
+                };
+            config.global = me
+                .global_set
+                .inactive_overlays
+                .arc_get(&saved.name)
+                .is_some()
+                || me.global_set.hidden_overlays.arc_get(&saved.name).is_some();
+            // add_with_spawn_pos applies saved set/global states, including hidden
+            // panels. Never activate a restored panel merely because it exists.
+            config.show_on_spawn = false;
+            me.add_with_spawn_pos(
+                OverlayWindowData::from_config(config),
+                app,
+                SpawnPos::FixedNoRealign,
+            );
+        }
 
         // recreate saved passthru overlays
         let saved_passthrus: Vec<_> = app
@@ -194,6 +229,9 @@ where
         }
 
         me.initialized = true;
+        if let Err(error) = crate::layout_presets::acknowledge_startup() {
+            log::warn!("Could not acknowledge preset startup: {error:#}");
+        }
 
         Ok(me)
     }
@@ -201,6 +239,43 @@ where
     #[allow(clippy::too_many_lines)]
     pub fn handle_task(&mut self, app: &mut AppState, task: OverlayTask) -> anyhow::Result<()> {
         match task {
+            OverlayTask::LayoutPreset(action) => {
+                let result = (|| -> anyhow::Result<String> {
+                    let mut library =
+                        crate::layout_presets::Library::read(&crate::layout_presets::path())?;
+                    let snapshot = if matches!(
+                        action,
+                        crate::layout_presets::Action::Save(_)
+                            | crate::layout_presets::Action::Replace(_)
+                    ) {
+                        self.persist_layout(app);
+                        Some(crate::config::AutoState::capture(&app.session.config))
+                    } else {
+                        None
+                    };
+                    let message = library.change(&action, snapshot)?;
+                    library.write(&crate::layout_presets::path())?;
+                    if matches!(action, crate::layout_presets::Action::Load(_)) {
+                        crate::RESTART.store(true, std::sync::atomic::Ordering::Relaxed);
+                        crate::RUNNING.store(false, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Ok(message)
+                })();
+                let message = result.unwrap_or_else(|error| format!("Preset error: {error:#}"));
+                if let Some(panel) = self.mut_by_selector(&OverlaySelector::Name(WATCH_NAME.into()))
+                {
+                    panel.config.backend.notify(
+                        app,
+                        OverlayEventData::CustomCommand {
+                            element: "preset_result".into(),
+                            command: crate::backend::task::ModifyPanelCommand::SetText(message),
+                        },
+                    )?;
+                }
+            }
+            OverlayTask::ScreenLayout(sel, layout, restoring) => {
+                self.screen_layout(app, &sel, layout, restoring)?
+            }
             OverlayTask::ShowHide => self.show_hide(app),
             OverlayTask::ToggleSet(set) => {
                 self.switch_or_toggle_set(app, set);
@@ -377,6 +452,17 @@ where
                     if o.config.active_state.is_some() {
                         continue;
                     }
+                    // Split panels need their hidden physical source for layout
+                    // changes and restoring the full desktop.
+                    if o.config.backend.screen_source().as_ref() == Some(&o.config.name)
+                        && self.overlays.iter().any(|(other_id, other)| {
+                            other_id != oid
+                                && other.config.backend.screen_source().as_ref()
+                                    == Some(&o.config.name)
+                        })
+                    {
+                        continue;
+                    }
                     ids_to_remove.push(oid);
                 }
 
@@ -528,6 +614,173 @@ const SAVED_ATTRIBS: &[BackendAttrib] = &[
 ];
 
 impl<T> OverlayWindowManager<T> {
+    /// Replace a physical screen with panels sharing its capture, or restore it.
+    fn screen_layout(
+        &mut self,
+        app: &mut AppState,
+        selector: &OverlaySelector,
+        layout: wlx_common::config::ScreenLayout,
+        restoring: bool,
+    ) -> anyhow::Result<()>
+    where
+        T: Default,
+    {
+        use crate::windowing::window::OverlayWindowConfig;
+        use glam::{Quat, vec3};
+        use wlx_common::config::{ScreenLayout, ScreenSplit};
+
+        let Some(selected) = self.id_by_selector(selector) else {
+            return Ok(());
+        };
+        let Some(source) = self.overlays[selected].config.backend.screen_source() else {
+            return Ok(());
+        };
+        let Some(source_id) = self.lookup(&source) else {
+            return Ok(());
+        };
+        if restoring && self.global_set.hidden_overlays.arc_get(&source).is_some() {
+            self.overlays[source_id].config.global = true;
+        }
+        let panel_name = |index| -> std::sync::Arc<str> {
+            format!("{source} [XS {layout:?} {}]", index + 1).into()
+        };
+        let regions = layout.regions();
+        if restoring && (0..regions.len()).all(|i| self.lookup(&panel_name(i)).is_some()) {
+            return Ok(());
+        }
+
+        // Build every backend before changing visibility or the saved definition.
+        let mut panels = Vec::new();
+        if layout != ScreenLayout::Full {
+            let source_config = &mut self.overlays[source_id].config;
+            let full_aspect = source_config
+                .backend
+                .screen_content_extent()
+                .map(|extent| extent[0] as f32 / extent[1].max(1) as f32)
+                .unwrap_or(32.0 / 9.0);
+            let head = snap_upright(app.input_state.hmd, Vec3A::Y);
+            let total_width = 2.5 * app.session.config.default_overlay_scale;
+            for (i, region) in regions.iter().enumerate() {
+                let Some(backend) = source_config.backend.screen_region(*region) else {
+                    log::warn!("Cannot split {source}: turn off stereo mode first");
+                    return Ok(());
+                };
+                let fraction = (region.end - region.start) as f32 / region.total as f32;
+                let width = total_width * fraction;
+                let height = total_width / full_aspect;
+                let center = total_width
+                    * ((region.start + region.end) as f32 / (2 * region.total) as f32 - 0.5);
+                let mut state = source_config
+                    .active_state
+                    .as_ref()
+                    .unwrap_or(&source_config.default_state)
+                    .clone();
+                state.transform = head
+                    * Affine3A::from_scale_rotation_translation(
+                        Vec3::splat(width.max(height)),
+                        Quat::IDENTITY,
+                        vec3(center, -0.1, -1.3),
+                    );
+                save_transform(&mut state, app);
+                // reset() uses the saved positioning-relative transform.
+                let config = OverlayWindowConfig {
+                    name: panel_name(i),
+                    category: OverlayCategory::Screen,
+                    input_focus: source_config.input_focus,
+                    default_state: state,
+                    global: source_config.global,
+                    show_on_spawn: false,
+                    ..OverlayWindowConfig::from_backend(backend)
+                };
+                panels.push(config);
+            }
+        }
+
+        if !restoring {
+            let old: Vec<_> = self
+                .overlays
+                .iter()
+                .filter_map(|(id, o)| {
+                    (id != source_id && o.config.backend.screen_source().as_ref() == Some(&source))
+                        .then_some(id)
+                })
+                .collect();
+            for id in old {
+                // Edit wrappers use ManuallyDrop. Return the panel to the pool
+                // and recover its backend before retiring a replaced region.
+                self.wrappers
+                    .unwrap_edit_mode(&mut self.overlays[id].config, app)?;
+                self.handle_task(app, OverlayTask::DropImmediate(OverlaySelector::Id(id)))?;
+            }
+            app.session
+                .config
+                .screen_splits
+                .retain(|s| s.source != source);
+            if layout != ScreenLayout::Full {
+                app.session.config.screen_splits.push(ScreenSplit {
+                    source: source.clone(),
+                    layout,
+                });
+            }
+        }
+
+        if layout == ScreenLayout::Full {
+            self.handle_task(
+                app,
+                OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOn),
+            )?;
+        } else {
+            let target_set = self.current_set.unwrap_or(self.restore_set);
+            for mut config in panels {
+                if self.lookup(&config.name).is_some() {
+                    continue;
+                }
+                let name = config.name.clone();
+                if restoring
+                    && (self.global_set.inactive_overlays.arc_get(&name).is_some()
+                        || self.global_set.hidden_overlays.arc_get(&name).is_some())
+                {
+                    config.global = true;
+                }
+                let has_saved_state =
+                    self.sets.iter().any(|s| {
+                        s.inactive_overlays.arc_get(&name).is_some()
+                            || s.hidden_overlays.arc_get(&name).is_some()
+                    }) || self.global_set.inactive_overlays.arc_get(&name).is_some()
+                        || self.global_set.hidden_overlays.arc_get(&name).is_some();
+                let id = self.add(OverlayWindowData::from_config(config), app);
+                if !restoring || !has_saved_state {
+                    let o = &mut self.overlays[id];
+                    if self.current_set.is_some() || o.config.global {
+                        o.config.activate(app, false);
+                    } else {
+                        self.sets[target_set]
+                            .overlays
+                            .insert(id, o.config.default_state.clone());
+                    }
+                }
+            }
+            // Keep the original in the overlay list for toggling, but hide it in
+            // the active layout. It still owns the same shared capture session.
+            self.handle_task(
+                app,
+                OverlayTask::ToggleOverlay(OverlaySelector::Id(source_id), ToggleMode::EnsureOff),
+            )?;
+            if let Some(state) = self.sets[target_set].overlays.remove(source_id) {
+                self.sets[target_set]
+                    .hidden_overlays
+                    .arc_set(source.clone(), state);
+            }
+        }
+        self.overlays_changed(app)?;
+        self.visible_overlays_changed(app)?;
+        if !restoring {
+            self.persist_layout(app);
+            save_state(&app.session.config)?;
+        }
+        Ok(())
+    }
+
     pub fn pop_dropped(&mut self) -> Option<OverlayWindowData<T>> {
         self.dropped_overlays.pop_front()
     }
@@ -900,7 +1153,25 @@ impl<T> OverlayWindowManager<T> {
             _ => return None,
         };
 
+        // Release any held input and capture resources before an overlay is retired.
+        if let Some(overlay) = self.overlays.get_mut(id) {
+            let _ = overlay
+                .config
+                .backend
+                .pause(app)
+                .log_err("Could not pause removed overlay");
+        }
         let ret_val = self.overlays.remove(id);
+        if let Some(removed) = ret_val.as_ref() {
+            let previous = app.session.config.app_panels.len();
+            app.session
+                .config
+                .app_panels
+                .retain(|panel| panel.name != removed.config.name);
+            if previous != app.session.config.app_panels.len() {
+                let _ = save_state(&app.session.config).log_err("Could not save removed app panel");
+            }
+        }
         let internal = ret_val.as_ref().is_some_and(|o| {
             matches!(
                 o.config.category,
@@ -1182,10 +1453,8 @@ impl<T> OverlayWindowManager<T> {
 
     pub fn show_hide(&mut self, app: &mut AppState) {
         if self.current_set.is_none() {
-            let hmd = snap_upright(app.input_state.hmd, Vec3A::Y);
-            app.anchor = hmd * self.anchor_local;
-
-            self.switch_to_set(app, Some(self.restore_set), false);
+            // Restore the stored workspace in place; hiding is not recentering.
+            self.switch_to_set(app, Some(self.restore_set), true);
         } else {
             self.switch_to_set(app, None, false);
         }

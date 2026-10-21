@@ -1,0 +1,24 @@
+<layout version="2"><elements><div width="100%" height="100%" flex_direction="column">
+<div id="content_space" width="100%" height="0" interactable="0" />
+<rectangle width="100%" height="72" padding="8" gap="8" color="#20272E" border="1" border_color="#39434C" round="10">
+<label id="screen_name" text="Screen" width="0" flex_grow="1" size="26" color="#E9EEF2" />
+<Button id="quick_toggle" width="220" height="100%" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Controls ▾" size="28" color="#E9EEF2" /></Button>
+</rectangle>
+      <rectangle id="quick_controls" display="none" width="100%" height="144" padding="8" gap="8" flex_direction="column" color="#20272E" border="1" border_color="#39434C">
+        <div width="100%" height="60" gap="8">
+          <Button id="quick_width_down" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Size −5%" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_width_up" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Size +5%" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_nearer" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Nearer" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_farther" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Farther" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_opacity_down" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Opacity −" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_opacity_up" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Opacity +" size="24" color="#E9EEF2" /></Button>
+        </div>
+        <div width="100%" height="60" gap="8">
+          <Button id="quick_curve_down" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Curve −" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_curve_up" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Curve +" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_pin" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Pin / unpin" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_recenter" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Recenter" size="24" color="#E9EEF2" /></Button>
+          <Button id="quick_hide" flex_grow="1" padding="6" border="0" round="10" color="#151C22" hover_color="#34414C"><label text="Hide" size="24" color="#E9EEF2" /></Button>
+        </div>
+      </rectangle>
+</div></elements></layout>

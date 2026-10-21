@@ -1,23 +1,26 @@
 <layout version="2">
   <vars>
-    <var key="clock0_size" value="46" />
-    <var key="clock0_date_size" value="16" />
-    <var key="clock0_dow_size" value="16" />
-    <var key="clock_alt_size" value="24" />
+    <var key="clock0_size" value="32" />
+    <var key="clock0_date_size" value="15" />
+    <var key="clock0_dow_size" value="15" />
+    <var key="clock_alt_size" value="18" />
     <var key="clock_alt_tz_size" value="14" />
   </vars>
 
   <macro name="decorative_rect"
-    padding="8" color="background"
-    border="2" border_color="outline" round="8" />
+    padding="8" color="#20272E"
+    border="1" border_color="#39434C" round="20" />
 
-  <macro name="button_style" padding="8" border="2" round="8" align_items="center" justify_content="center" />
+  <macro name="button_style" padding="8" border="0" round="12" color="#151C22" hover_color="#34414C" sticky_color="#D5E2EB" align_items="center" justify_content="center" />
 
   <template name="Device">
-    <rectangle macro="decorative_rect" padding_top="4" padding_bottom="4" align_items="center" gap="8">
-      <sprite width="32" height="32" src_builtin="${src}" color="on_background" />
-      <label _source="battery" _device="${idx}" size="24" weight="bold" _low_color="danger" _normal_color="primary" _charging_color="tertiary" />
-    </rectangle>
+    <div width="62" height="66" flex_shrink="0" flex_direction="column" align_items="center" justify_content="center" gap="2">
+      <div align_items="center" justify_content="center" height="30">
+        <label _source="battery_charging" _device="${idx}" width="16" size="22" color="#A0BBCF" _charging_color="#A0BBCF" />
+        <sprite width="28" height="28" src_builtin="${src}" color="#E9EEF2" />
+      </div>
+      <label _source="battery" _device="${idx}" size="21" weight="bold" _low_color="#E6A2A2" _normal_color="#E9EEF2" _charging_color="#A0BBCF" />
+    </div>
   </template>
 
   <template name="Hmd">
@@ -78,97 +81,138 @@
   </template>
 
   <template name="Clock">
-    <div gap="12" flex_direction="column" padding="4">
-      <div flex_direction="column" >
-        <label text="11:22 PM" _source="clock" _display="time" color="on_background" size="~clock0_size" weight="bold" align="center" />
-        <div padding_left="2" gap="16" flex_direction="row" justify_content="center">
-          <label text="Tue" _source="clock" _display="dow_short" color="on_background_variant" size="~clock0_dow_size" weight="bold" />
-          <label text="22/2/2022" _source="clock" _display="date" color="on_background_variant" size="~clock0_date_size" weight="bold" />
-        </div>
-      </div>
-      <div flex_direction="row" gap="8" justify_content="space_around">
-        <!-- Timezone names here are only placeholders. Set your timezones via ~/.config/wayvr/conf.d -->
-        <div flex_direction="column">
-          <label text="Paris" _source="clock" _display="name" _timezone="0" color="secondary" size="~clock_alt_tz_size" weight="bold" align="center" />
-          <label text="23:59" _source="clock" _display="time" _timezone="0" color="secondary" size="~clock_alt_size" weight="bold" align="center" />
-        </div>
-        <div flex_direction="column">
-          <label text="New York" _source="clock" _display="name" _timezone="1" color="tertiary" size="~clock_alt_tz_size" weight="bold" align="center" />
-          <label text="23:59" _source="clock" _display="time" _timezone="1" color="tertiary" size="~clock_alt_size" weight="bold" align="center" />
-        </div>
-      </div>
+    <div gap="3" flex_direction="column" padding="4">
+      <label text="W A Y V R  X S" color="#A9B6C1" size="13" />
+      <label text="11:22 PM" _source="clock" _display="time" color="#E9EEF2" size="~clock0_size" weight="bold" />
     </div>
   </template>
 
-  <template name="VerticalSeparator">
-    <rectangle width="2" height="100%" color="outline" />
+  <template name="Timezones">
+          <div gap="16" justify_content="center" width="100%">
+            <div gap="6"><label _source="clock" _display="name" _timezone="0" size="16" color="secondary" /><label _source="clock" _display="time" _timezone="0" size="18" color="secondary" /></div>
+            <div gap="6"><label _source="clock" _display="name" _timezone="1" size="16" color="tertiary" /><label _source="clock" _display="time" _timezone="1" size="18" color="tertiary" /></div>
+          </div>
   </template>
 
   <elements>
-    <!-- padding="32" is required there (to make room for tooltips) -->
-    <div
-      padding="32" interactable="0"
-      flex_direction="column" gap="8">
-      <!-- Top elements (device battery levels) -->
-      <div id="devices_root" interactable="0" gap="6" width="100%" max_width="400" flex_direction="row" flex_wrap="wrap">
-        <!-- Will populate tags at runtime -->
-        <!-- These are examples for uidev -->
-        <Hmd idx="0" />
-        <LeftHand idx="1" />
-        <RightHand idx="2" />
-        <Tracker idx="3" />
-      </div>
-
-      <!-- All other elements inside the container -->
-      <div flex_direction="column" gap="8" min_width="300">
-        <rectangle macro="decorative_rect" flex_direction="row" gap="8" justify_content="space_evenly">
-          <!-- Clock, date and various timezones -->
-          <div id="clock_root">
-            <Clock />
+    <!-- Fixed canvas reserves shelf, tooltip and battery space so the base never jumps. -->
+    <div id="watch_canvas" width="584" height="880" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
+      <div id="shelf_slot" width="520" height="320" flex_shrink="0" interactable="0">
+        <rectangle id="shelf_actions" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
+          <label text="QUICK ACTIONS" size="18" color="#A9B6C1" />
+          <div gap="8" justify_content="space_between" width="100%">
+            <Button id="btn_keyboard" macro="button_style" width="82" height="64" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD"><sprite src_builtin="@/watch/keyboard.svg" width="32" height="32" /></Button>
+            <Button id="btn_edit_mode" macro="button_style" width="82" height="64" _press="::EditToggle" tooltip="WATCH.EDIT_MODE"><sprite src_builtin="@/watch/edit.svg" width="32" height="32" /></Button>
+            <Button id="btn_recenter" macro="button_style" width="82" height="64" _press="::PlayspaceRecenter" tooltip="WATCH.RECENTER"><sprite src_builtin="@/watch/recenter.svg" width="32" height="32" /></Button>
+            <Button id="btn_floor" macro="button_style" width="82" height="64" _press="::PlayspaceFixFloor" tooltip="WATCH.FIX_FLOOR"><sprite src_builtin="@/watch/fix-floor.svg" width="32" height="32" /></Button>
+            <Button id="btn_dashboard" macro="button_style" width="82" height="64" _press="::DashToggle" tooltip="WATCH.DASHBOARD"><sprite src_builtin="@/watch/wayvr_dashboard_mono.svg" width="32" height="32" /></Button>
           </div>
-
-          <!-- Four buttons -->
-          <div flex_direction="column" gap="8">
-            <div gap="8">
-              <Button id="btn_keyboard" macro="button_style" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD" tooltip_side="left">
-                <sprite src_builtin="@/watch/keyboard.svg" width="40" height="40" />
-              </Button>
-              <Button id="btn_edit_mode" macro="button_style" _press="::EditToggle" tooltip="WATCH.EDIT_MODE" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/edit.svg" />
-              </Button>
-            </div>
-            <div gap="8">
-              <Button macro="button_style" _press="::PlayspaceRecenter" tooltip="WATCH.RECENTER" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/recenter.svg" />
-              </Button>
-              <Button macro="button_style" _press="::PlayspaceFixFloor" tooltip="WATCH.FIX_FLOOR" tooltip_side="left">
-                <sprite width="40" height="40" src="@/watch/fix-floor.svg" />
-              </Button>
-            </div>
+          <div gap="8" width="100%">
+            <Button id="btn_add_capture" macro="button_style" flex_grow="1" height="52" _press="::NewAppWindow" tooltip="BAR.ADD_APP_WINDOW" skip="~not_window_capture"><sprite width="26" height="26" src_builtin="@/edit/mirror.svg" /><label text="+ App" size="21" /></Button>
+            <Button id="btn_add_interactive" macro="button_style" flex_grow="1" height="52" _press="::NewInteractiveWindow" tooltip="BAR.ADD_INTERACTIVE_WINDOW" skip="~not_kde"><sprite width="26" height="26" src_builtin="@/edit/normal.svg" /><label text="+ Interactive" size="21" /></Button>
           </div>
+          <div id="timezones_root"><Timezones /></div>
         </rectangle>
-
-        <!-- Bottom buttons -->
-        <div flex_direction="row" gap="8">
-          <div gap="4">
-            <Button id="btn_dashboard" macro="button_style" _press="::DashToggle" tooltip="WATCH.DASHBOARD" tooltip_side="top">
-              <sprite width="40" height="40" src="@/watch/wayvr_dashboard_mono.svg" />
-            </Button>
+        <rectangle id="shelf_panels" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
+          <div width="100%" align_items="center" justify_content="space_between"><label text="PANELS / SETS" size="18" color="#A9B6C1" /><Button id="btn_show_hide" macro="button_style" height="44" padding="8" text="Hide overlays" text_size="17" text_color="#E9EEF2" _press="::ShowHide" tooltip_str="Hide or restore the current workspace"><sprite id="show_hide_icon" src_builtin="@/watch/shelf-eye.svg" width="24" height="24" color="#E9EEF2" /></Button></div>
+          <div id="sets_root" gap="6" width="100%" flex_wrap="wrap"><Set idx="0" display="1" /><Set idx="1" display="2" /></div>
+          <div id="panels_root" gap="6" width="100%" flex_wrap="wrap" display="none"><Screen idx="0" display="H1" name="HDMI-A-1" /><Screen idx="1" display="D2" name="DP-2" /></div>
+        </rectangle>
+        <rectangle id="shelf_performance" display="none" width="100%" height="100%" macro="decorative_rect" padding="14" flex_direction="column" gap="8">
+          <div width="100%" height="44" justify_content="space_between" align_items="center">
+            <label text="PC performance" size="19" color="#E9EEF2" />
+            <div gap="6"><Button id="next_gpu" macro="button_style" width="48" height="44" tooltip_str="Select next GPU"><label text="GPU ›" size="13" color="#A9B6C1" /></Button>
+            <Button id="btn_performance_close" macro="button_style" width="48" height="44" tooltip_str="Collapse performance"><sprite src_builtin="@/watch/shelf-collapse.svg" width="20" height="20" color="#E9EEF2" /></Button></div>
           </div>
-          <VerticalSeparator />
-          <div id="sets_root" gap="4">
-            <!-- Will populate tags at runtime -->
-            <!-- These are examples for uidev -->
-            <Set idx="0" display="1" />
-            <Set idx="1" display="2" />
+          <label id="gpu_name" text="Reading sensors…" size="14" color="#A9B6C1" />
+          <rectangle width="100%" height="64" flex_shrink="0" color="#151C22" round="12" padding="12" flex_direction="column" gap="12">
+            <div width="100%" justify_content="space_between"><label text="WayVR frame" size="16" color="#E9EEF2" /><label id="frame_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+            <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="frame_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+          </rectangle>
+          <div width="100%" gap="10" height="90" flex_shrink="0">
+            <rectangle id="gpu_card" width="0" flex_grow="1" color="#151C22" round="12" padding="12" flex_direction="column" gap="10">
+              <div width="100%" justify_content="space_between"><label text="GPU" size="16" color="#E9EEF2" /><label id="gpu_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+              <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="gpu_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+              <div gap="4"><label text="VRAM" size="13" color="#A9B6C1" /><label id="vram_value" text="—" size="13" color="#A9B6C1" /><label text="·" size="13" color="#A9B6C1" /><label id="gpu_temp_value" text="—" size="13" color="#A9B6C1" /></div>
+            </rectangle>
+            <rectangle id="cpu_card" width="0" flex_grow="1" color="#151C22" round="12" padding="12" flex_direction="column" gap="10">
+              <div width="100%" justify_content="space_between"><label text="CPU" size="16" color="#E9EEF2" /><label id="cpu_value" text="—" size="16" weight="bold" color="#E9EEF2" /></div>
+              <rectangle width="100%" height="6" color="#39434C" round="3"><rectangle id="cpu_fill" width="0" height="100%" color="#A0BBCF" round="3" /></rectangle>
+              <div gap="4"><label text="RAM" size="13" color="#A9B6C1" /><label id="ram_value" text="—" size="13" color="#A9B6C1" /><label text="·" size="13" color="#A9B6C1" /><label id="cpu_temp_value" text="—" size="13" color="#A9B6C1" /></div>
+            </rectangle>
           </div>
-          <div id="panels_root" gap="4" display="none">
-            <!-- Will populate tags at runtime -->
-            <!-- These are examples for uidev -->
-            <Screen idx="0" display="H1" name="HDMI-A-1" />
-            <Screen idx="1" display="D2" name="DP-2"/>
+          <label id="status" text="WayVR loop timing · — unavailable / warming up" size="13" color="#A9B6C1" />
+        </rectangle>
+        <rectangle id="shelf_layouts" display="none" width="100%" height="100%" macro="decorative_rect" padding="14" flex_direction="column" gap="10">
+          <div id="layout_header" width="100%" height="44" justify_content="space_between" align_items="center"><label text="Saved layouts" size="19" color="#E9EEF2" /><Button id="btn_layouts_close" macro="button_style" width="48" height="44" tooltip_str="Collapse layouts"><sprite src_builtin="@/watch/shelf-collapse.svg" width="20" height="20" color="#E9EEF2" /></Button></div>
+          <div id="layout_main" width="100%" flex_direction="column" gap="10">
+            <div width="100%" gap="8"><Button id="layout_picker" macro="button_style" width="240" height="48" border="1" border_color="#39434C"><label id="layout_selection" text="Choose a layout ▾" size="17" color="#E9EEF2" /></Button><Button id="layout_load" macro="button_style" width="0" flex_grow="1" height="48"><label text="Load &amp; restart" size="17" color="#E9EEF2" /></Button></div>
+            <div width="100%" gap="8"><Button id="layout_edit_name" macro="button_style" width="240" height="48" border="1" border_color="#39434C" tooltip_str="Edit layout name"><label id="layout_name" text="Enter a name…" size="17" color="#E9EEF2" /></Button><Button id="layout_save" macro="button_style" width="0" flex_grow="1" height="48"><label text="Save" size="18" color="#E9EEF2" /></Button></div>
+            <div width="100%" gap="8"><Button id="layout_rename" macro="button_style" width="0" flex_grow="1" height="48"><label text="Rename" size="17" color="#E9EEF2" /></Button><Button id="layout_startup" macro="button_style" width="0" flex_grow="1.5" height="48"><label id="layout_startup_label" text="Use at startup" size="17" color="#E9EEF2" /></Button><Button id="layout_delete" macro="button_style" width="0" flex_grow="1" height="48"><label text="Delete" size="17" color="#E9EEF2" /></Button></div>
+          <rectangle id="layout_list" display="none" position="absolute" margin_top="48" margin_left="0" width="240" padding="4" color="#151C22" border="1" border_color="#39434C" round="8" flex_direction="column" gap="4" consume_mouse_events="1">
+            <Button id="layout_choose_0" macro="button_style" width="100%" height="44" text="Layout" text_size="17" text_color="#E9EEF2" />
+            <Button id="layout_choose_1" macro="button_style" width="100%" height="44" text="Layout" text_size="17" text_color="#E9EEF2" />
+            <Button id="layout_choose_2" macro="button_style" width="100%" height="44" text="Layout" text_size="17" text_color="#E9EEF2" />
+            <div width="100%" gap="6" align_items="center"><Button id="layout_previous" macro="button_style" height="44" width="44" tooltip_str="Previous page"><label text="‹" size="16" color="#E9EEF2" /></Button><label id="layout_page" text="1 / 1" size="16" color="#A9B6C1" /><Button id="layout_next" macro="button_style" height="44" width="44" tooltip_str="Next page"><label text="›" size="16" color="#E9EEF2" /></Button><Button id="layout_back" macro="button_style" height="44" width="44" tooltip_str="Close dropdown"><label text="×" size="16" color="#E9EEF2" /></Button></div>
+          </rectangle>
+          </div>
+          <div id="layout_keys" display="none" width="100%" flex_direction="column" gap="8">
+            <label id="layout_key_name" text="Name" height="36" size="19" color="#E9EEF2" />
+            <div id="layout_letters" width="100%" flex_direction="column" gap="4">
+              <div width="100%" justify_content="space_between"><Button id="layout_key_A" macro="button_style" width="44" height="44"><label text="A" size="18" color="#E9EEF2" /></Button><Button id="layout_key_B" macro="button_style" width="44" height="44"><label text="B" size="18" color="#E9EEF2" /></Button><Button id="layout_key_C" macro="button_style" width="44" height="44"><label text="C" size="18" color="#E9EEF2" /></Button><Button id="layout_key_D" macro="button_style" width="44" height="44"><label text="D" size="18" color="#E9EEF2" /></Button><Button id="layout_key_E" macro="button_style" width="44" height="44"><label text="E" size="18" color="#E9EEF2" /></Button><Button id="layout_key_F" macro="button_style" width="44" height="44"><label text="F" size="18" color="#E9EEF2" /></Button><Button id="layout_key_G" macro="button_style" width="44" height="44"><label text="G" size="18" color="#E9EEF2" /></Button><Button id="layout_key_H" macro="button_style" width="44" height="44"><label text="H" size="18" color="#E9EEF2" /></Button><Button id="layout_key_I" macro="button_style" width="44" height="44"><label text="I" size="18" color="#E9EEF2" /></Button><Button id="layout_key_J" macro="button_style" width="44" height="44"><label text="J" size="18" color="#E9EEF2" /></Button></div>
+              <div width="100%" justify_content="space_between"><Button id="layout_key_K" macro="button_style" width="44" height="44"><label text="K" size="18" color="#E9EEF2" /></Button><Button id="layout_key_L" macro="button_style" width="44" height="44"><label text="L" size="18" color="#E9EEF2" /></Button><Button id="layout_key_M" macro="button_style" width="44" height="44"><label text="M" size="18" color="#E9EEF2" /></Button><Button id="layout_key_N" macro="button_style" width="44" height="44"><label text="N" size="18" color="#E9EEF2" /></Button><Button id="layout_key_O" macro="button_style" width="44" height="44"><label text="O" size="18" color="#E9EEF2" /></Button><Button id="layout_key_P" macro="button_style" width="44" height="44"><label text="P" size="18" color="#E9EEF2" /></Button><Button id="layout_key_Q" macro="button_style" width="44" height="44"><label text="Q" size="18" color="#E9EEF2" /></Button><Button id="layout_key_R" macro="button_style" width="44" height="44"><label text="R" size="18" color="#E9EEF2" /></Button><Button id="layout_key_S" macro="button_style" width="44" height="44"><label text="S" size="18" color="#E9EEF2" /></Button><Button id="layout_key_T" macro="button_style" width="44" height="44"><label text="T" size="18" color="#E9EEF2" /></Button></div>
+              <div width="100%" justify_content="space_between"><Button id="layout_key_U" macro="button_style" width="44" height="44"><label text="U" size="18" color="#E9EEF2" /></Button><Button id="layout_key_V" macro="button_style" width="44" height="44"><label text="V" size="18" color="#E9EEF2" /></Button><Button id="layout_key_W" macro="button_style" width="44" height="44"><label text="W" size="18" color="#E9EEF2" /></Button><Button id="layout_key_X" macro="button_style" width="44" height="44"><label text="X" size="18" color="#E9EEF2" /></Button><Button id="layout_key_Y" macro="button_style" width="44" height="44"><label text="Y" size="18" color="#E9EEF2" /></Button><Button id="layout_key_Z" macro="button_style" width="44" height="44"><label text="Z" size="18" color="#E9EEF2" /></Button><Button id="layout_key_dash" macro="button_style" width="44" height="44"><label text="-" size="18" color="#E9EEF2" /></Button><Button id="layout_key_underscore" macro="button_style" width="44" height="44"><label text="_" size="18" color="#E9EEF2" /></Button><Button id="layout_key_period" macro="button_style" width="44" height="44"><label text="." size="18" color="#E9EEF2" /></Button><Button id="layout_key_apostrophe" macro="button_style" width="44" height="44"><label text="&apos;" size="18" color="#E9EEF2" /></Button></div>
+            </div>
+            <div id="layout_numbers" display="none" width="100%" height="140" flex_direction="column"><div width="100%" justify_content="space_between"><Button id="layout_key_0" macro="button_style" width="44" height="44"><label text="0" size="18" color="#E9EEF2" /></Button><Button id="layout_key_1" macro="button_style" width="44" height="44"><label text="1" size="18" color="#E9EEF2" /></Button><Button id="layout_key_2" macro="button_style" width="44" height="44"><label text="2" size="18" color="#E9EEF2" /></Button><Button id="layout_key_3" macro="button_style" width="44" height="44"><label text="3" size="18" color="#E9EEF2" /></Button><Button id="layout_key_4" macro="button_style" width="44" height="44"><label text="4" size="18" color="#E9EEF2" /></Button><Button id="layout_key_5" macro="button_style" width="44" height="44"><label text="5" size="18" color="#E9EEF2" /></Button><Button id="layout_key_6" macro="button_style" width="44" height="44"><label text="6" size="18" color="#E9EEF2" /></Button><Button id="layout_key_7" macro="button_style" width="44" height="44"><label text="7" size="18" color="#E9EEF2" /></Button><Button id="layout_key_8" macro="button_style" width="44" height="44"><label text="8" size="18" color="#E9EEF2" /></Button><Button id="layout_key_9" macro="button_style" width="44" height="44"><label text="9" size="18" color="#E9EEF2" /></Button></div></div>
+            <div width="100%" gap="6"><Button id="layout_clear" macro="button_style" width="0" flex_grow="1" height="44"><label text="Clear" size="17" color="#E9EEF2" /></Button><Button id="layout_backspace" macro="button_style" width="0" flex_grow="1" height="44"><label text="⌫" size="17" color="#E9EEF2" /></Button><Button id="layout_space" macro="button_style" width="0" flex_grow="1" height="44"><label text="Space" size="17" color="#E9EEF2" /></Button><Button id="layout_digits" macro="button_style" width="0" flex_grow="1" height="44"><label text="123/ABC" size="17" color="#E9EEF2" /></Button><Button id="layout_done" macro="button_style" width="0" flex_grow="1" height="44"><label text="Done" size="17" color="#E9EEF2" /></Button></div>
+          </div>
+          <label id="layout_status" text="Loading a layout restarts WayVR." size="15" color="#A9B6C1" />
+        </rectangle>
+      </div>
+      <rectangle id="watch_base" macro="decorative_rect" round="22" padding="14" width="520" height="176" flex_shrink="0" flex_direction="column" gap="8">
+        <div width="100%" align_items="center" justify_content="space_between">
+          <div id="clock_root"><Clock /></div>
+          <div gap="6">
+            <Button id="btn_shelf_panels" macro="button_style" width="48" height="54" tooltip_str="Panels / sets"><sprite id="btn_shelf_panels_icon" src_builtin="@/watch/shelf-panels.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_layouts" macro="button_style" width="48" height="54" tooltip_str="Saved layouts"><sprite id="btn_layouts_icon" src_builtin="@/watch/shelf-layouts.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_performance" macro="button_style" width="48" height="54" tooltip_str="PC performance"><sprite id="btn_performance_icon" src_builtin="@/watch/shelf-stats.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_media" macro="button_style" width="48" height="54" tooltip_str="Show / hide media controls"><sprite id="btn_media_icon" src_builtin="@/watch/media.svg" width="24" height="24" color="#E9EEF2" /></Button>
+            <Button id="btn_shelf_actions" macro="button_style" width="48" height="54" tooltip_str="Quick actions / settings"><sprite id="btn_shelf_actions_icon" src_builtin="@/watch/shelf-actions.svg" width="24" height="24" color="#E9EEF2" /></Button>
           </div>
         </div>
+        <div width="100%" gap="8">
+          <label _source="clock" _display="dow_short" size="15" color="#A9B6C1" />
+          <label _source="clock" _display="date" size="15" color="#A9B6C1" />
+          <label _source="timer" _format="· Session %h:%m" size="15" color="#A9B6C1" />
+        </div>
+        <rectangle width="100%" height="40" flex_shrink="0" padding_left="12" padding_right="12" color="#151C22" round="12" align_items="center" justify_content="space_between">
+          <label id="panel_count" text="Panels" size="16" color="#E9EEF2" />
+          <label id="runtime_name" text="OpenXR" size="16" color="#E9EEF2" />
+        </rectangle>
+      </rectangle>
+      <div id="battery_slot" width="520" height="304" flex_shrink="0" interactable="0" flex_direction="column" gap="8" align_items="center">
+        <rectangle id="media_strip" macro="decorative_rect" display="none" width="520" height="72" flex_shrink="0" padding="10" round="20" gap="8" align_items="center">
+          <Button id="media_player" macro="button_style" width="48" height="48" padding="0" tooltip_str="Switch media player">
+            <sprite id="media_art_fallback" src_builtin="@/watch/media.svg" width="28" height="28" color="#A9B6C1" />
+            <image id="media_art" width="48" height="48" round="8" position="absolute" />
+          </Button>
+          <div width="278" height="48" overflow="clip" flex_shrink="0" flex_direction="column" justify_content="center" gap="2">
+            <label id="media_title" wrap="0" text="No media player" size="18" weight="bold" color="#E9EEF2" />
+            <div width="278" height="16" justify_content="space_between" align_items="center">
+              <div width="154" overflow="clip"><label id="media_artist" wrap="0" text="Start a media player" size="14" color="#A9B6C1" /></div>
+              <label id="media_time" text="— / —" width="116" wrap="0" size="11" color="#A9B6C1" />
+            </div>
+            <rectangle id="media_progress" width="278" height="4" flex_shrink="0" color="#39434C" round="2" interactable="0"><rectangle id="media_progress_fill" width="0" height="4" color="#A0BBCF" round="2" interactable="0" /></rectangle>
+          </div>
+          <div gap="2" align_items="center">
+            <Button id="media_previous" macro="button_style" width="44" height="48" padding="4" tooltip_str="Previous track"><sprite id="media_previous_icon" src_builtin="@/watch/media-previous.svg" width="22" height="22" color="#E9EEF2" /></Button>
+            <Button id="media_play" macro="button_style" width="44" height="48" padding="4" tooltip_str="Play / pause"><sprite id="media_play_icon" src_builtin="@/watch/media-play.svg" width="22" height="22" color="#E9EEF2" /><sprite id="media_pause_icon" src_builtin="@/watch/media-pause.svg" width="22" height="22" color="#E9EEF2" display="none" /></Button>
+            <Button id="media_next" macro="button_style" width="44" height="48" padding="4" tooltip_str="Next track"><sprite id="media_next_icon" src_builtin="@/watch/media-next.svg" width="22" height="22" color="#E9EEF2" /></Button>
+          </div>
+        </rectangle>
+        <rectangle id="battery_strip" macro="decorative_rect" display="none" round="20" padding="6" max_width="520">
+          <div id="devices_root" interactable="0" gap="4" max_width="504" flex_direction="row" flex_wrap="wrap" justify_content="center" />
+        </rectangle>
       </div>
     </div>
   </elements>

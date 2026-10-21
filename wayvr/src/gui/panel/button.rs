@@ -307,6 +307,14 @@ pub(super) fn setup_custom_button<S: 'static>(
                         .enqueue(TaskType::Overlay(OverlayTask::ToggleDashboard));
                     Ok(EventResult::Consumed)
                 }),
+                "::ShowHide" => Box::new(move |_common, data, app, _| {
+                    if !test_button(data) || !test_duration(&button, app) {
+                        return Ok(EventResult::Pass);
+                    }
+
+                    app.tasks.enqueue(TaskType::Overlay(OverlayTask::ShowHide));
+                    Ok(EventResult::Consumed)
+                }),
                 "::SetToggle" => {
                     let arg = args.next().unwrap_or_default();
                     let Ok(set_idx) = arg.parse() else {
@@ -530,23 +538,37 @@ pub(super) fn setup_custom_button<S: 'static>(
                     Ok(EventResult::Consumed)
                 }),
                 #[cfg(feature = "wayland")]
-                "::NewMirror" => Box::new(move |_common, data, app, _| {
-                    if !test_button(data) || !test_duration(&button, app) {
-                        return Ok(EventResult::Pass);
-                    }
-
-                    let name = crate::overlays::screen::mirror::new_mirror_name();
-                    app.tasks.enqueue(TaskType::Overlay(OverlayTask::Spawn(
-                        OverlaySelector::Name(name.clone()),
-                        SpawnPos::Spread,
-                        Box::new(move |app| {
-                            crate::overlays::screen::mirror::new_mirror(name, app)
-                                .log_err("Could not create mirror")
-                                .ok()
-                        }),
-                    )));
-                    Ok(EventResult::Consumed)
-                }),
+                "::NewMirror" | "::NewAppWindow" | "::NewInteractiveWindow" => {
+                    let window_only = command == "::NewAppWindow";
+                    let interactive = command == "::NewInteractiveWindow";
+                    Box::new(move |_common, data, app, _| {
+                        if !test_button(data) || !test_duration(&button, app) {
+                            return Ok(EventResult::Pass);
+                        }
+                        let name = if interactive {
+                            crate::overlays::screen::kde::new_panel_name()
+                        } else if window_only {
+                            crate::overlays::screen::mirror::new_app_window_name()
+                        } else {
+                            crate::overlays::screen::mirror::new_mirror_name()
+                        };
+                        app.tasks.enqueue(TaskType::Overlay(OverlayTask::Spawn(
+                            OverlaySelector::Name(name.clone()),
+                            SpawnPos::Spread,
+                            Box::new(move |app| {
+                                let result = if interactive {
+                                    crate::overlays::screen::kde::new_interactive_window(name, app)
+                                } else if window_only {
+                                    crate::overlays::screen::mirror::new_app_window(name, app)
+                                } else {
+                                    crate::overlays::screen::mirror::new_mirror(name, app)
+                                };
+                                result.log_err("Could not create portal mirror").ok()
+                            }),
+                        )));
+                        Ok(EventResult::Consumed)
+                    })
+                }
                 "::CleanupMirrors" => Box::new(move |_common, data, app, _| {
                     if !test_button(data) || !test_duration(&button, app) {
                         return Ok(EventResult::Pass);

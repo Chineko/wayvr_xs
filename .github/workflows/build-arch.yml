@@ -1,0 +1,132 @@
+name: Build Arch package
+
+on:
+  push:
+    branches: [feat/xs-ultrawide-panels]
+  pull_request:
+    branches: [feat/xs-ultrawide-panels]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arch-package-${{ github.repository }}-${{ github.ref_name }}
+  # Do not interrupt replacement of the live repository database.
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 60
+    env:
+      SOURCE_COMMIT: ${{ github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prepare Arch tools
+        run: pacman -Syu --noconfirm --needed git desktop-file-utils shellcheck vulkan-swrast
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.SOURCE_COMMIT }}
+      - name: Check packaging syntax
+        run: |
+          bash -n packaging/arch/PKGBUILD packaging/arch/make-repository.sh packaging/arch/publish-repository.sh
+          shellcheck --shell=bash packaging/arch/make-repository.sh packaging/arch/publish-repository.sh
+          shellcheck --shell=bash --exclude=SC2034,SC2154 packaging/arch/PKGBUILD
+          desktop-file-validate packaging/arch/wayvr-xs.desktop
+      - name: Install package dependencies
+        id: dependencies
+        run: |
+          source packaging/arch/PKGBUILD
+          pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}" "${checkdepends[@]}"
+          printf 'fingerprint=%s\n' "$(pacman -Q | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Prepare unprivileged build
+        run: |
+          useradd --create-home builder
+          mkdir -p /build/source /build/package /build/cargo
+          cp -a "$GITHUB_WORKSPACE/." /build/source/
+          cp packaging/arch/PKGBUILD /build/package/
+      - uses: actions/cache/restore@v4
+        id: build-cache
+        with:
+          path: |
+            /build/cargo
+            /build/package/src/target
+          # Rebuild after Arch library/toolchain updates, including SONAME changes.
+          key: arch-xs-v2-${{ runner.arch }}-${{ steps.dependencies.outputs.fingerprint }}-${{ hashFiles('Cargo.lock', 'packaging/arch/PKGBUILD') }}
+      - name: Build and test exact source commit
+        id: build
+        run: |
+          chown -R builder:builder /build
+          runuser -u builder -- env \
+            WAYVR_XS_SOURCE="git+file:///build/source#commit=$SOURCE_COMMIT" \
+            CARGO_HOME=/build/cargo CARGO_BUILD_JOBS=2 \
+            bash -c 'cd /build/package && makepkg --noconfirm'
+      - name: Install and smoke-test package
+        run: |
+          # The minimal Arch image skips documentation via NoExtract. Test the
+          # full package as it would be installed on a normal desktop instead.
+          sed '/^[[:space:]]*NoExtract[[:space:]]*=/d' /etc/pacman.conf > /tmp/wayvr-xs-pacman.conf
+          pacman --config /tmp/wayvr-xs-pacman.conf -U --noconfirm /build/package/wayvr-xs-git-*.pkg.tar.zst
+          pacman -Ql wayvr-xs-git
+          /usr/bin/wayvr-xs --help
+          /usr/bin/wayvr-xs-support --help
+          /usr/bin/wayvr-xs-support doctor
+          desktop-file-validate /usr/share/applications/wayvr-xs.desktop
+          test -s /usr/share/icons/hicolor/scalable/apps/wayvr-xs.svg
+          test -s /usr/share/doc/wayvr-xs/ARCH-INSTALL.md
+          pacman -Qk wayvr-xs-git
+          mkdir -p artifacts
+          cp /build/package/wayvr-xs-git-*.pkg.tar.zst artifacts/
+          printf '%s\n' "$SOURCE_COMMIT" > artifacts/SOURCE-COMMIT.txt
+          cd artifacts
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - name: Prepare pacman repository
+        run: |
+          cp packaging/arch/wayvr-xs.conf artifacts/
+          cd artifacts
+          bash "$GITHUB_WORKSPACE/packaging/arch/make-repository.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wayvr-xs-arch-x86_64
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Cache verified build outputs
+        if: always() && steps.build.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /build/cargo
+            /build/package/src/target
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+  publish:
+    timeout-minutes: 10
+    needs: package
+    if: github.repository == 'Chineko/wayvr_xs' && github.ref == 'refs/heads/feat/xs-ultrawide-panels'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: wayvr-xs-arch-x86_64
+          path: repository
+      - name: Publish verified package and pacman database
+        working-directory: repository
+        run: bash ../packaging/arch/publish-repository.sh

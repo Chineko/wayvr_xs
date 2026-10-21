@@ -37,6 +37,8 @@
 		"RES_TITLE": "Rozdzielczość"
 	},
 	"APP_SETTINGS": {
+		"INDEPENDENT_PANEL_MOVEMENT": "Independent panel movement",
+		"INDEPENDENT_PANEL_MOVEMENT_HELP": "Move screens, panels and the keyboard individually when grabbing. Disable to move anchored overlays together again. Existing positions and positioning modes are preserved.",
 		"ALLOW_SLIDING": "Interakcja drążkiem podczas przesuwania",
 		"ANIMATION_SPEED": "Prędkość animacji UI",
 		"AUTOSTART_APPS": "Aplikacje uruchamiane przy starcie",
@@ -263,7 +265,9 @@
 		},
 		"TUTORIAL": "Samouczek",
 		"RESTART_WAYVR": "Zrestartuj WayVR",
-		"CLOSE_WAYVR": "Zamknij WayVR"
+		"CLOSE_WAYVR": "Zamknij WayVR",
+		"SPEECH_TO_TEXT": "Zamiana mowy na tekst",
+		"WHISPER_GPU_SELECT": "Wybierz GPU"
 	},
 	"APPLICATION_LAUNCHER": "Launcher aplikacji",
 	"APPLICATION_STARTED": "Uruchomiono aplikację",
@@ -373,7 +377,9 @@
 		"TITLE": "Opcje zasilania",
 		"SHUTDOWN": "Wyłącz",
 		"SUSPEND": "Uśpij",
-		"SHUTDOWN_ARE_YOU_SURE": "Czy na pewno chcesz wyłączyć komputer?"
+		"SHUTDOWN_ARE_YOU_SURE": "Czy na pewno chcesz wyłączyć komputer?",
+		"NOT_SUPPORTED": "Opcje zasilania wymagają systemd lub elogind.",
+		"SUSPEND_ARE_YOU_SURE": "Czy na pewno chcesz uśpić komputer?"
 	},
 	"YES": "Tak",
 	"NO": "Nie"

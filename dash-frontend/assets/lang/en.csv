@@ -259,6 +259,8 @@ APP_SETTINGS.WHISPER_MODEL,Speech-to-text model,Dropdown label in Settings > Fea
 APP_SETTINGS.WHISPER_MODEL_HELP,"Whisper model to use.
 Larger models produce more accurate
 results, but consume more VRAM.",Tooltip for the speech-to-text model dropdown.
+APP_SETTINGS.SPEECH_TO_TEXT,"Speech to text","Category header in Settings"
+APP_SETTINGS.WHISPER_GPU_SELECT,"Select GPU","A list of GPUs the user can select from"
 APP_SETTINGS.TUTORIAL,Tutorial,Tooltip for tutorial button in the main screen.
 APP_SETTINGS.GRID_OPACITY,Floor grid opacity,Slider in Settings > Skybox tab. Controls the opacity of the floor grid when skybox is enabled.
 APP_SETTINGS.GRID_OPACITY_HELP,Opacity of the floor grid when the skymap is enabled,"Tooltip for the floor grid opacity slider. ""Skymap"" was previously translated as ""${DEFINITIONS.SKYMAP}""."
@@ -365,3 +367,5 @@ INSTALLED,"Installed","Installation flag (installed/not installed)"
 NOT_INSTALLED,"Not installed","Installation flag (installed/not installed)"
 YES,"Yes","Just a simple 'Yes' message, button in the dialog box"
 NO,"No","Just a simple 'No' message, button in the dialog box"
+APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT,"Independent panel movement",Independent workspace grab toggle
+APP_SETTINGS.INDEPENDENT_PANEL_MOVEMENT_HELP,"Move screens, panels and the keyboard individually when grabbing. Disable to move anchored overlays together again. Existing positions and positioning modes are preserved.",Independent workspace grab toggle

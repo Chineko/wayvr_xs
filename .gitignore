@@ -1,7 +1,13 @@
 .~lock.*
 /target
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/wayvr-xs/
+/packaging/arch/*.pkg.tar.*
 .gdb_history
 .vscode
 .cargo
 scripts/translator/node_modules
 */Cargo.lock
+
+__pycache__/
