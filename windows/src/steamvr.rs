@@ -15,7 +15,7 @@ unsafe extern "C" {
     fn xs_vr_create(key: *const c_char, title: *const c_char, handle: *mut u64) -> i32;
     fn xs_vr_destroy(handle: u64);
     fn xs_vr_show(handle: u64, visible: bool) -> i32;
-    fn xs_vr_clear(handle: u64);
+    fn xs_vr_clear(handle: u64) -> i32;
     fn xs_vr_place(handle: u64, width: f32, matrix: *const f32) -> i32;
     fn xs_vr_submit(handle: u64, texture: *mut c_void, u_min: f32, u_max: f32, linear: bool)
     -> i32;
@@ -102,12 +102,11 @@ impl Runtime {
         }
         Ok(())
     }
-    pub fn clear(&self) {
+    pub fn clear(&self) -> Result<()> {
         for &h in &self.handles {
-            unsafe {
-                xs_vr_clear(h);
-            }
+            check(unsafe { xs_vr_clear(h) }, "Clear old overlay texture")?;
         }
+        Ok(())
     }
     pub fn show(&self, visible: &[bool]) -> Result<()> {
         ensure!(

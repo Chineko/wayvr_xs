@@ -1,5 +1,6 @@
 mod capture;
 mod steamvr;
+mod surface;
 
 use anyhow::{Context, Result, ensure};
 use clap::{Parser, ValueEnum};
@@ -165,6 +166,7 @@ fn run() -> Result<()> {
         let mut frames = 0;
         while RUNNING.load(Ordering::Relaxed) && start.elapsed().as_secs() < u64::from(seconds) {
             if capture.update(50)? {
+                capture.overlays_cleared(); // No overlays in this diagnostic.
                 check_size(capture.size, args.expect_size)?;
                 frames += 1;
             }
@@ -316,6 +318,10 @@ fn run() -> Result<()> {
         } else {
             match capture.update(5) {
                 Ok(updated) => {
+                    if capture.clear_required() {
+                        vr.clear()?;
+                        capture.overlays_cleared();
+                    }
                     if updated {
                         check_size(capture.size, args.expect_size)?;
                     }
@@ -324,7 +330,7 @@ fn run() -> Result<()> {
                         dirty = true;
                     }
                     if (updated || dirty)
-                        && let (Some(texture), Some(origin)) = (&capture.texture, head)
+                        && let (Some(texture), Some(origin)) = (capture.texture(), head)
                     {
                         let widths = panel_widths(&regions, capture.size, height);
                         let total: f32 =
@@ -349,7 +355,7 @@ fn run() -> Result<()> {
                     }
                     eprintln!("Capture paused: {e:#}. Retrying after desktop/device recovery.");
                     vr.show(&vec![false; regions.len()])?;
-                    vr.clear();
+                    vr.clear()?;
                     capture.pause();
                     recovering = true;
                     last_recovery = Instant::now();

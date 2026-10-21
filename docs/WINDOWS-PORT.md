@@ -143,3 +143,18 @@ Monitor listing now includes the current Windows pixel mode. Optional
 `--expect-size 5120x1440` guards both initial active mode and captured surface
 size. The app does not force display modes or assume that streaming software has
 kept the physical monitor's native resolution. See `windows/README.md`.
+
+## Windows 0.1.2 live surface transitions
+
+User confirmed full-screen 5120x1440 capture, then reported repeated overlay
+recovery on frame size/format changes (BGRA8 and RGBA16F in the log). Those changes
+now replace the application-owned texture inside the existing duplication
+session. The renderer clears all old OpenVR texture references before releasing
+or reusing the previous texture. A bounded two-texture cache handles alternating
+SDR/HDR frames without repeated allocation. Actual device/access/desktop loss
+still uses recovery.
+
+Tests cover 100 SDR/HDR transitions, resize/lifetime ordering, and preservation
+of the published texture if allocation fails. There are nine Windows unit tests
+plus the existing eight shared-core tests. Native build and Clippy pass; this
+latest overlay change still requires headset confirmation.

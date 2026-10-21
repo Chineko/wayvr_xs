@@ -93,7 +93,7 @@ void xs_vr_destroy(uint64_t handle) {
 int xs_vr_show(uint64_t handle, bool visible) {
     return static_cast<int>(visible ? overlays->ShowOverlay(handle) : overlays->HideOverlay(handle));
 }
-void xs_vr_clear(uint64_t handle) { overlays->ClearOverlayTexture(handle); }
+int xs_vr_clear(uint64_t handle) { return static_cast<int>(overlays->ClearOverlayTexture(handle)); }
 int xs_vr_place(uint64_t handle, float width, const float* values) {
     vr::HmdMatrix34_t matrix{};
     for (int r = 0; r < 3; ++r)

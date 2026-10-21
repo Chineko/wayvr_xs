@@ -89,10 +89,15 @@ fidelity still needs headset validation. The hardware cursor may be absent when 
 separate pointer shape.
 
 Permanent capture errors stop with a useful message instead of retrying forever.
-On desktop/device interruption or size/format change, the app hides and clears the overlays,
+On actual desktop/device interruption, the app hides and clears the overlays,
 releases capture, and retries the same display name once per second. It does not
 silently switch to another monitor. Capture uses one app-owned shared GPU texture
 for every split. GPU copies complete before releasing DXGI's borrowed frame.
+
+SDR/HDR and frame-size changes replace the texture inside the existing capture
+session. The previous texture stays alive until every overlay has cleared its
+reference. Two textures are cached so alternating SDR/HDR frames do not allocate
+on every update. Only actual device/desktop interruption reconnects capture.
 
 ## Desktop resolution changed while streaming
 
@@ -140,7 +145,10 @@ change display mode and check recovery. Confirm capture frame rate and GPU use
 at 5120×1440. Automated build/tests cannot establish visual quality, compositor
 synchronization, hardware recovery or acceptable frame timing.
 
-Local validation so far: native x64 release build, formatting, Clippy, six
+Local validation so far: native x64 release build, formatting, Clippy, nine
 Windows regression/layout/placement tests, eight shared-core tests, and real monitor enumeration.
 Live desktop capture returned `0x80070005` in the restricted development session;
-capture and headset rendering have not yet been accepted on hardware.
+the user subsequently confirmed full-screen capture at 5120x1440, but reported
+repeated overlay recovery on changing frame formats. Version 0.1.2 handles those
+transitions without restarting duplication; headset acceptance of that fix is
+pending.

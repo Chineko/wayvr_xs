@@ -1,3 +1,4 @@
+use crate::surface::{SurfaceCache, SurfaceKey};
 use anyhow::{Context, Result, bail, ensure};
 use std::time::{Duration, Instant};
 use windows::{
@@ -42,33 +43,21 @@ fn capture_color(format: DXGI_FORMAT) -> Result<CaptureColor> {
     }
 }
 
-#[derive(Debug)]
-struct CaptureChanged;
-impl std::fmt::Display for CaptureChanged {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            "Desktop size/format changed; recreate capture before releasing its published texture",
-        )
-    }
-}
-impl std::error::Error for CaptureChanged {}
-
-/// Retry actual device/desktop interruptions, not permanent format or programming errors.
+/// Retry actual device/desktop interruptions, not frame format changes.
 pub fn recoverable(error: &anyhow::Error) -> bool {
-    error.downcast_ref::<CaptureChanged>().is_some()
-        || error
-            .downcast_ref::<windows::core::Error>()
-            .is_some_and(|e| {
-                matches!(
-                    e.code(),
-                    DXGI_ERROR_ACCESS_LOST
-                        | DXGI_ERROR_DEVICE_REMOVED
-                        | DXGI_ERROR_DEVICE_RESET
-                        | DXGI_ERROR_SESSION_DISCONNECTED
-                        | DXGI_ERROR_NOT_CURRENTLY_AVAILABLE
-                        | windows::Win32::Foundation::E_ACCESSDENIED
-                )
-            })
+    error
+        .downcast_ref::<windows::core::Error>()
+        .is_some_and(|e| {
+            matches!(
+                e.code(),
+                DXGI_ERROR_ACCESS_LOST
+                    | DXGI_ERROR_DEVICE_REMOVED
+                    | DXGI_ERROR_DEVICE_RESET
+                    | DXGI_ERROR_SESSION_DISCONNECTED
+                    | DXGI_ERROR_NOT_CURRENTLY_AVAILABLE
+                    | windows::Win32::Foundation::E_ACCESSDENIED
+            )
+        })
 }
 
 pub struct Monitor {
@@ -140,9 +129,9 @@ pub struct Capture {
     context: ID3D11DeviceContext,
     duplicate: Option<IDXGIOutputDuplication>,
     query: ID3D11Query,
-    pub texture: Option<ID3D11Texture2D>,
+    surfaces: SurfaceCache<ID3D11Texture2D>,
+    last_surface_log: Option<Instant>,
     pub size: [u32; 2],
-    format: DXGI_FORMAT,
     pub color: CaptureColor,
 }
 
@@ -195,9 +184,9 @@ impl Capture {
                 context,
                 duplicate: Some(duplicate),
                 query: query.context("Missing GPU query")?,
-                texture: None,
+                surfaces: SurfaceCache::default(),
+                last_surface_log: None,
                 size: [0; 2],
-                format: DXGI_FORMAT_UNKNOWN,
                 color: CaptureColor::Gamma,
             })
         }
@@ -205,7 +194,18 @@ impl Capture {
 
     pub fn pause(&mut self) {
         self.duplicate = None;
-        self.texture = None;
+        self.surfaces = SurfaceCache::default();
+    }
+
+    pub fn texture(&self) -> Option<&ID3D11Texture2D> {
+        self.surfaces.texture()
+    }
+    pub fn clear_required(&self) -> bool {
+        self.surfaces.clear_required()
+    }
+    /// The caller must first clear every overlay's old texture (no overlays in capture-test mode).
+    pub fn overlays_cleared(&mut self) {
+        self.surfaces.overlays_cleared();
     }
 
     /// Own the image before releasing DXGI's frame. Every overlay uses this same GPU texture.
@@ -227,35 +227,50 @@ impl Capture {
             source.GetDesc(&mut desc);
             ensure!(desc.Width > 0 && desc.Height > 0, "Empty desktop texture");
             let color = capture_color(desc.Format)?;
-            if self.texture.is_some()
-                && (self.size != [desc.Width, desc.Height] || self.format != desc.Format)
-            {
-                return Err(CaptureChanged.into());
-            }
-            if self.texture.is_none() {
+            let key = SurfaceKey {
+                size: [desc.Width, desc.Height],
+                format: desc.Format,
+            };
+            let previous = self.surfaces.key();
+            let device = &self.device;
+            let changed = self.surfaces.activate(key, || {
                 desc.Usage = D3D11_USAGE_DEFAULT;
                 desc.BindFlags = D3D11_BIND_SHADER_RESOURCE.0 as u32;
                 desc.CPUAccessFlags = 0;
                 desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED.0 as u32;
-                self.device
-                    .CreateTexture2D(&desc, None, Some(&mut self.texture))?;
-                self.size = [desc.Width, desc.Height];
-                self.format = desc.Format;
+                let mut next = None;
+                device.CreateTexture2D(&desc, None, Some(&mut next))?;
+                next.context("D3D11 returned no capture texture")
+            })?;
+            if changed {
+                self.size = key.size;
                 self.color = color;
-                println!(
-                    "Capture surface: {}x{}, {:?}, {}",
-                    self.size[0],
-                    self.size[1],
-                    desc.Format,
-                    if color == CaptureColor::Linear {
-                        "linear scRGB / HDR source"
-                    } else {
-                        "SDR gamma"
-                    }
-                );
+                // Some drivers alternate SDR/HDR surfaces; keep this diagnostic bounded.
+                if self
+                    .last_surface_log
+                    .is_none_or(|t| t.elapsed() >= Duration::from_secs(5))
+                {
+                    println!(
+                        "Capture surface: {}x{}, {:?}, {}{}",
+                        self.size[0],
+                        self.size[1],
+                        key.format,
+                        if color == CaptureColor::Linear {
+                            "linear scRGB / HDR source"
+                        } else {
+                            "SDR gamma"
+                        },
+                        if previous.is_some() {
+                            " (texture updated in place; capture stays connected)"
+                        } else {
+                            ""
+                        }
+                    );
+                    self.last_surface_log = Some(Instant::now());
+                }
             }
             self.context
-                .CopyResource(self.texture.as_ref().unwrap(), &source);
+                .CopyResource(self.surfaces.texture().unwrap(), &source);
             self.context.End(&self.query);
             self.context.Flush();
             // Complete the copy before releasing DXGI's borrowed resource or giving it to OpenVR.
@@ -313,9 +328,6 @@ mod tests {
 
     #[test]
     fn desktop_and_device_changes_remain_recoverable_through_context() {
-        assert!(recoverable(
-            &anyhow::Error::new(CaptureChanged).context("Frame capture")
-        ));
         for code in [
             DXGI_ERROR_ACCESS_LOST,
             DXGI_ERROR_DEVICE_REMOVED,
