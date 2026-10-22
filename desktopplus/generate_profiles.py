@@ -7,6 +7,9 @@ LAYOUTS = {
     'Dual': [0, 2560, 5120],
     'Thirds': [0, 1706, 3413, 5120],
     'Wide Center': [0, 1280, 3840, 5120],
+    'Add Full': [0, 5120],
+    'Add Left Half': [0, 2560],
+    'Add Right Half': [2560, 5120],
 }
 
 
@@ -66,7 +69,7 @@ def main():
                     profile(layout, backend).write(f, space_around_delimiters=False)
                 path.write_text(path.read_text(encoding="utf-8").rstrip() + "\n", encoding="utf-8")
             validate(path, layout, backend)
-    print('Validated six native Desktop+ profiles: dual, thirds, wide center; both capture backends.')
+    print('Validated twelve native Desktop+ layout and add-panel profiles; both capture backends.')
 
 
 if __name__ == '__main__':

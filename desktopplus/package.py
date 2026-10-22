@@ -23,11 +23,11 @@ for name in binaries:
 tracked = subprocess.check_output(['git', '-C', str(source), 'ls-files', '-z']).decode().split('\0')
 tracked = [s for s in tracked if s]
 profiles = sorted((recipe / 'profiles').glob('XS*.ini'))
-assert len(profiles) == 6
+assert len(profiles) == 12
 readme = (recipe / 'README.md').read_bytes()
 patch_sha = hashlib.sha256((recipe / 'xs-native-controls.patch').read_bytes()).hexdigest()
 manifest = {
-    'version': 'Desktop+ XS 0.1.0',
+    'version': 'Desktop+ XS 0.2.0',
     'upstream': 'https://github.com/elvissteinjr/DesktopPlus',
     'upstream_commit': '031d74d69f08411a9a9b1030d3d428ac02b93549',
     'patch_sha256': patch_sha,
@@ -35,7 +35,7 @@ manifest = {
     'binaries': {name: hashlib.sha256((release / name).read_bytes()).hexdigest() for name in binaries},
 }
 
-binary_zip = destination / 'DesktopPlus-XS-0.1.0-windows-x64.zip'
+binary_zip = destination / 'DesktopPlus-XS-0.2.0-windows-x64.zip'
 with zipfile.ZipFile(binary_zip, 'w', compression=zipfile.ZIP_DEFLATED) as z:
     for path in tracked:
         if path.startswith('assets/'):
@@ -48,7 +48,7 @@ with zipfile.ZipFile(binary_zip, 'w', compression=zipfile.ZIP_DEFLATED) as z:
     z.writestr('DesktopPlus-XS/XS-README.md', readme)
     z.writestr('DesktopPlus-XS/XS-VERSION.json', json.dumps(manifest, indent=2))
 
-source_zip = destination / 'DesktopPlus-XS-0.1.0-source.zip'
+source_zip = destination / 'DesktopPlus-XS-0.2.0-source.zip'
 with zipfile.ZipFile(source_zip, 'w', compression=zipfile.ZIP_DEFLATED) as z:
     for path in tracked:
         z.write(source / path, 'DesktopPlus-XS-source/' + path)

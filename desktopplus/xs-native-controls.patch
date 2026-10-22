@@ -1,8 +1,780 @@
+diff --git a/assets/input/action_bindings_frame_controller.json b/assets/input/action_bindings_frame_controller.json
+index e387800..6fa05ca 100644
+--- a/assets/input/action_bindings_frame_controller.json
++++ b/assets/input/action_bindings_frame_controller.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+diff --git a/assets/input/action_bindings_gamepad.json b/assets/input/action_bindings_gamepad.json
+index a662979..aa57876 100644
+--- a/assets/input/action_bindings_gamepad.json
++++ b/assets/input/action_bindings_gamepad.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "sources" : [
+diff --git a/assets/input/action_bindings_generic.json b/assets/input/action_bindings_generic.json
+index 9569c7e..8fd3786 100644
+--- a/assets/input/action_bindings_generic.json
++++ b/assets/input/action_bindings_generic.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+@@ -54,7 +54,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+@@ -63,7 +63,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+diff --git a/assets/input/action_bindings_generic_hmd.json b/assets/input/action_bindings_generic_hmd.json
+index 745edba..170c0a1 100644
+--- a/assets/input/action_bindings_generic_hmd.json
++++ b/assets/input/action_bindings_generic_hmd.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 6,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/hmd" : {
+          "eyetracking": [
+diff --git a/assets/input/action_bindings_holographic.json b/assets/input/action_bindings_holographic.json
+index daed7e7..cc287c0 100644
+--- a/assets/input/action_bindings_holographic.json
++++ b/assets/input/action_bindings_holographic.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+@@ -54,7 +54,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+@@ -63,7 +63,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+diff --git a/assets/input/action_bindings_hpmotioncontroller.json b/assets/input/action_bindings_hpmotioncontroller.json
+index 55da282..e9388ac 100644
+--- a/assets/input/action_bindings_hpmotioncontroller.json
++++ b/assets/input/action_bindings_hpmotioncontroller.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+@@ -54,7 +54,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+@@ -63,7 +63,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+diff --git a/assets/input/action_bindings_knuckles.json b/assets/input/action_bindings_knuckles.json
+index 8c7cb83..ba814bf 100644
+--- a/assets/input/action_bindings_knuckles.json
++++ b/assets/input/action_bindings_knuckles.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+diff --git a/assets/input/action_bindings_knuckles_ev1.json b/assets/input/action_bindings_knuckles_ev1.json
+index ddedb99..50273fc 100644
+--- a/assets/input/action_bindings_knuckles_ev1.json
++++ b/assets/input/action_bindings_knuckles_ev1.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+diff --git a/assets/input/action_bindings_playstation_vr2_sense_controller.json b/assets/input/action_bindings_playstation_vr2_sense_controller.json
+index bb11302..80a6813 100644
+--- a/assets/input/action_bindings_playstation_vr2_sense_controller.json
++++ b/assets/input/action_bindings_playstation_vr2_sense_controller.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+diff --git a/assets/input/action_bindings_svl_hand_interaction_augmented.json b/assets/input/action_bindings_svl_hand_interaction_augmented.json
+index 79844f6..e8d1a6e 100644
+--- a/assets/input/action_bindings_svl_hand_interaction_augmented.json
++++ b/assets/input/action_bindings_svl_hand_interaction_augmented.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "sources" : [
+diff --git a/assets/input/action_bindings_touch.json b/assets/input/action_bindings_touch.json
+index 943fafe..329a930 100644
+--- a/assets/input/action_bindings_touch.json
++++ b/assets/input/action_bindings_touch.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+@@ -62,7 +62,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/MiddleClick"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+@@ -71,7 +71,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/MiddleClick"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+diff --git a/assets/input/action_bindings_vive_controller.json b/assets/input/action_bindings_vive_controller.json
+index a35db01..30d1fcc 100644
+--- a/assets/input/action_bindings_vive_controller.json
++++ b/assets/input/action_bindings_vive_controller.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+@@ -62,7 +62,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+@@ -71,7 +71,7 @@
+             {
+                "inputs" : {
+                   "click" : {
+-                     "output" : "/actions/laserpointer/in/Aux01Click"
++                     "output" : "/actions/laserpointer/in/Drag"
+                   }
+                },
+                "mode" : "button",
+diff --git a/assets/input/action_bindings_vive_cosmos.json b/assets/input/action_bindings_vive_cosmos.json
+index 9e4951d..c3d010f 100644
+--- a/assets/input/action_bindings_vive_cosmos.json
++++ b/assets/input/action_bindings_vive_cosmos.json
+@@ -1,7 +1,7 @@
+ {
+    "action_manifest_version" : 5,
+    "alias_info" : {},
+-   "app_key" : "steam.overlay.1494460",
++   "app_key" : "chineko.DesktopPlusXS",
+    "bindings" : {
+       "/actions/laserpointer" : {
+          "haptics" : [
+diff --git a/assets/manifest.vrmanifest b/assets/manifest.vrmanifest
+index d275c83..abf09c1 100644
+--- a/assets/manifest.vrmanifest
++++ b/assets/manifest.vrmanifest
+@@ -2,7 +2,7 @@
+     "source": "builtin",
+     "applications": [
+     {
+-        "app_key": "steam.overlay.1494460",
++        "app_key": "chineko.DesktopPlusXS",
+         
+         "launch_type": "binary",
+         "binary_path_windows": "DesktopPlus.exe",
+diff --git a/src/DesktopPlus/LaserPointer.cpp b/src/DesktopPlus/LaserPointer.cpp
+index c8f1e49..ed5f0e6 100644
+--- a/src/DesktopPlus/LaserPointer.cpp
++++ b/src/DesktopPlus/LaserPointer.cpp
+@@ -922,7 +922,8 @@ void LaserPointer::RefreshCachedOverlayHandles()
+         "elvissteinjr.DesktopPlusUIFloating",
+         "elvissteinjr.DesktopPlusUISettings",
+         "elvissteinjr.DesktopPlusUIOverlayProperties",
+-        "elvissteinjr.DesktopPlusUIAux"
++        "elvissteinjr.DesktopPlusUIAux",
++        "chineko.DesktopPlusXSWrist"
+     };
+ 
+     for (const char* key : ui_overlay_keys)
+diff --git a/src/DesktopPlus/OutputManager.cpp b/src/DesktopPlus/OutputManager.cpp
+index 280335d..7e80174 100644
+--- a/src/DesktopPlus/OutputManager.cpp
++++ b/src/DesktopPlus/OutputManager.cpp
+@@ -5339,6 +5339,9 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+         }
+         case vr::VREvent_MouseButtonDown:
+         {
++            // Grip owns a direct drag. Ignore new clicks until it is released;
++            // mouse-up events still pass through to release any earlier desktop click.
++            if (m_OvrlDirectDragActive) break;
+             ActionManager& action_manager = ConfigManager::Get().GetActionManager();
+ 
+             if (ConfigManager::GetValue(configid_bool_state_overlay_selectmode))
+@@ -5505,7 +5508,7 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+                     }
+                 }
+             }
+-            else if ( (m_OverlayDragger.GetDragOverlayID() == overlay_current.GetID()) && ( (m_OverlayDragger.IsDragActive()) || (m_OverlayDragger.IsDragGestureActive()) ) )
++            else if ( (!m_OvrlDirectDragActive) && (m_OverlayDragger.GetDragOverlayID() == overlay_current.GetID()) && ( (m_OverlayDragger.IsDragActive()) || (m_OverlayDragger.IsDragGestureActive()) ) )
+             {
+                 if ((vr_event.data.mouse.button == vr::VRMouseButton_Left) && (m_OverlayDragger.IsDragActive()))
+                 {
+diff --git a/src/DesktopPlusUI/DesktopPlusUI.cpp b/src/DesktopPlusUI/DesktopPlusUI.cpp
+index 70b3aae..3cfa50b 100644
+--- a/src/DesktopPlusUI/DesktopPlusUI.cpp
++++ b/src/DesktopPlusUI/DesktopPlusUI.cpp
+@@ -326,6 +326,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
+                 }
+             }
+ 
++            ui_manager.UpdateXSWristTracking();
++            rect_v4 = UITextureSpaces::Get().GetRectAsVec4(ui_texspace_xs_wrist);
++            while (vr::VROverlay()->PollNextOverlayEvent(ui_manager.GetOverlayHandleXSWrist(), &vr_event, sizeof(vr_event)))
++            {
++                idle_state.OnOpenVREvent(vr_event.eventType);
++                ImGui_ImplOpenVR_InputEventHandler(vr_event, &rect_v4);
++            }
++
+             //Handle OpenVR events for the Aux UI
+             rect_v4 = UITextureSpaces::Get().GetRectAsVec4(ui_texspace_aux_ui);
+ 
+@@ -478,6 +486,15 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
+             ImGui::GetMainViewport()->Size.y = io.DisplaySize.y;
+ 
+             ui_manager.GetAuxUI().Update();
++
++            const DPRect& xs_rect = UITextureSpaces::Get().GetRect(ui_texspace_xs_wrist);
++            io.DisplaySize.x = (float)xs_rect.Max.x;
++            io.DisplaySize.y = (float)xs_rect.Max.y;
++            ImGui::GetMainViewport()->Size = io.DisplaySize;
++            ui_manager.UpdateXSWrist();
++            io.DisplaySize = ImVec2((float)UITextureSpaces::Get().GetRect(ui_texspace_total).Max.x,
++                                   (float)UITextureSpaces::Get().GetRect(ui_texspace_total).Max.y);
++            ImGui::GetMainViewport()->Size = io.DisplaySize;
+         }
+         else
+         {
+@@ -802,6 +819,7 @@ void RefreshOverlayTextureSharing()
+     vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleOverlayProperties(), g_vrTex.Get());
+     vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleKeyboard(),          g_vrTex.Get());
+     vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleAuxUI(),             g_vrTex.Get());
++    vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleXSWrist(),           g_vrTex.Get());
+     //Also schedule for performance overlays, in case there are any
+     UIManager::Get()->GetPerformanceWindow().ScheduleOverlaySharedTextureUpdate();
+ }
+diff --git a/src/DesktopPlusUI/UIManager.cpp b/src/DesktopPlusUI/UIManager.cpp
+index a61e3c5..11d3cb8 100644
+--- a/src/DesktopPlusUI/UIManager.cpp
++++ b/src/DesktopPlusUI/UIManager.cpp
+@@ -65,8 +65,10 @@ void UITextureSpaces::Init(bool desktop_mode, bool keyboard_editor_mode)
+                                                             m_TexspaceRects[ui_texspace_total].GetWidth(),
+                                                             m_TexspaceRects[ui_texspace_keyboard].GetBR().y + vertical_spacing + 550};
+ 
++        m_TexspaceRects[ui_texspace_xs_wrist] = {0, m_TexspaceRects[ui_texspace_aux_ui].Max.y + vertical_spacing,
++                                               584, m_TexspaceRects[ui_texspace_aux_ui].Max.y + vertical_spacing + 880};
+         //Set total height last
+-        m_TexspaceRects[ui_texspace_total].Max.y = m_TexspaceRects[ui_texspace_performance_monitor].GetBR().y;
++        m_TexspaceRects[ui_texspace_total].Max.y = m_TexspaceRects[ui_texspace_xs_wrist].Max.y;
+     }
+     else
+     {
+@@ -147,6 +149,13 @@ bool UIManager::IdleState::ShouldIdle()
+         return false;
+     }
+ 
++    //Wake once per second for the wrist clock. Controller-relative tracking is handled by SteamVR.
++    static ULONGLONG xs_last_wake = 0;
++    if (!ui_manager.IsInDesktopMode() && ui_manager.XSWristEnabled() && xs_last_wake + 1000 < ::GetTickCount64())
++    {
++        xs_last_wake = ::GetTickCount64();
++        return false;
++    }
+     //Performance Monitor needs constant updates, but it'll be throttled in GetFrameSkipValue() if possible
+     if (ui_manager.GetPerformanceWindow().IsVisible())
+     {
+@@ -186,6 +195,8 @@ bool UIManager::IdleState::ShouldIdle()
+ 
+ bool UIManager::IdleState::ShouldDeepIdle()
+ {
++    // The wrist's clock wakes independently of input; keep its shared atlas resident.
++    if (!UIManager::Get()->IsInDesktopMode() && UIManager::Get()->XSWristEnabled()) return false;
+     return ((ShouldIdle()) && (m_LastActiveTick + s_MsBeforeDeepIdle < ::GetTickCount64()));
+ }
+ 
+@@ -402,6 +413,7 @@ void UIManager::SetOverlayInputEnabled(bool is_enabled)
+     vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleOverlayProperties, input_method);
+     vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleKeyboard,          input_method);
+     vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleAuxUI,             input_method);
++    vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleXSWrist,           input_method);
+ }
+ 
+ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t overlay_handle) const
+@@ -420,6 +432,7 @@ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t over
+     else if (overlay_handle == m_OvrlHandleAuxUI)
+         overlay_texspace = ui_texspace_aux_ui;
+ 
++    if (overlay_handle == m_OvrlHandleXSWrist) overlay_texspace = ui_texspace_xs_wrist;
+     return overlay_texspace;
+ }
+ 
+@@ -549,6 +562,12 @@ vr::EVRInitError UIManager::InitOverlay()
+             vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleKeyboard,           &mouse_scale);
+             vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleAuxUI,              &mouse_scale);
+ 
++            if (vr::VROverlay()->CreateOverlay("chineko.DesktopPlusXSWrist", "Desktop+ XS Wrist", &m_OvrlHandleXSWrist) == vr::VROverlayError_None)
++            {
++                vr::VROverlay()->SetOverlayWidthInMeters(m_OvrlHandleXSWrist, 0.34f);
++                vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleXSWrist, &mouse_scale);
++                vr::VROverlay()->SetOverlayFlag(m_OvrlHandleXSWrist, vr::VROverlayFlags_SendVRSmoothScrollEvents, true);
++            }
+             SetOverlayInputEnabled(true);
+ 
+             //Setup texture bounds for all overlays
+@@ -594,6 +613,11 @@ vr::EVRInitError UIManager::InitOverlay()
+             bounds.vMax = rect_keyboard.GetBR().y / tex_height;
+             vr::VROverlay()->SetOverlayTextureBounds(m_OvrlHandleKeyboard, &bounds);
+ 
++            const DPRect& xs_rect = UITextureSpaces::Get().GetRect(ui_texspace_xs_wrist);
++            bounds.uMin = xs_rect.Min.x / tex_width; bounds.vMin = xs_rect.Min.y / tex_height;
++            bounds.uMax = xs_rect.Max.x / tex_width; bounds.vMax = xs_rect.Max.y / tex_height;
++            vr::VROverlay()->SetOverlayTextureBounds(m_OvrlHandleXSWrist, &bounds);
++
+             //Set curve pitch for overlay bar. This adjusts the pitch to match the SteamVR dashboard
+             vr::VROverlay()->SetOverlayPreCurvePitch(m_OvrlHandleOverlayBar, 0.20f);
+         }
+@@ -1282,9 +1306,9 @@ vr::VROverlayHandle_t UIManager::GetOverlayHandleSystemUI() const
+     return m_OvrlHandleSystemUI;
+ }
+ 
+-std::array<vr::VROverlayHandle_t, 6> UIManager::GetUIOverlayHandles() const
++std::array<vr::VROverlayHandle_t, 7> UIManager::GetUIOverlayHandles() const
+ {
+-    return {m_OvrlHandleOverlayBar, m_OvrlHandleFloatingUI, m_OvrlHandleSettings, m_OvrlHandleOverlayProperties, m_OvrlHandleKeyboard, m_OvrlHandleAuxUI};
++    return {m_OvrlHandleOverlayBar, m_OvrlHandleFloatingUI, m_OvrlHandleSettings, m_OvrlHandleOverlayProperties, m_OvrlHandleKeyboard, m_OvrlHandleAuxUI, m_OvrlHandleXSWrist};
+ }
+ 
+ bool UIManager::IsDummyOverlayTransformUnstable() const
+@@ -1337,6 +1361,8 @@ DPRect UIManager::CalcRectForActiveTexspace()
+     if (m_AuxUI.IsActive())
+         (rect.GetWidth() == 0) ? rect = UITextureSpaces::Get().GetRect(ui_texspace_aux_ui)              : rect.Add(UITextureSpaces::Get().GetRect(ui_texspace_aux_ui));
+ 
++    if (m_OvrlHandleXSWrist != vr::k_ulOverlayHandleInvalid && vr::VROverlay()->IsOverlayVisible(m_OvrlHandleXSWrist))
++        (rect.GetWidth() == 0) ? rect = UITextureSpaces::Get().GetRect(ui_texspace_xs_wrist) : rect.Add(UITextureSpaces::Get().GetRect(ui_texspace_xs_wrist));
+     return rect;
+ }
+ 
+@@ -2501,3 +2527,274 @@ void UIManager::TriggerLaserPointerHaptics(vr::VROverlayHandle_t overlay_handle,
+         IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_lpointer_trigger_haptics, device_index);
+     }
+ }
++void UIManager::UpdateXSWristTracking()
++{
++    if (m_OvrlHandleXSWrist == vr::k_ulOverlayHandleInvalid) return;
++    const auto role = m_XSWristRightHand ? vr::TrackedControllerRole_RightHand : vr::TrackedControllerRole_LeftHand;
++    const auto device = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(role);
++    vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount] = {};
++    vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, 0.0f, poses, vr::k_unMaxTrackedDeviceCount);
++    if (!m_XSWristEnabled || device >= vr::k_unMaxTrackedDeviceCount || !poses[device].bPoseIsValid || !poses[device].bDeviceIsConnected)
++    {
++        vr::VROverlay()->HideOverlay(m_OvrlHandleXSWrist);
++        return;
++    }
++    // Fixed canvas centre coincides with the clock base. Opening drawers cannot move it.
++    vr::HmdMatrix34_t transform = {{{1, 0, 0, 0}, {0, 0, 1, 0.065f}, {0, -1, 0, 0.02f}}};
++    vr::VROverlay()->SetOverlayTransformTrackedDeviceRelative(m_OvrlHandleXSWrist, device, &transform);
++    vr::VROverlay()->ShowOverlay(m_OvrlHandleXSWrist);
++}
++
++std::string UIManager::LoadXSProfile(const std::string& profile, bool append)
++{
++    const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + profile + ".ini").c_str());
++    if (!FileExists(path.c_str())) return "Profile missing. Extract the complete XS package.";
++    if (!append && OverlayManager::Get().GetOverlayCount() && !ConfigManager::Get().SaveMultiOverlayProfileToFile("XS Previous Layout.ini"))
++        return "Backup failed. Layout was not replaced.";
++    std::vector<char> included(1, true);
++    if (!ConfigManager::Get().LoadMultiOverlayProfileFromFile(profile + ".ini", !append, append ? &included : nullptr))
++        return "Could not load profile.";
++    ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
++    IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
++    IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, GetWindowHandle());
++    if (append)
++    {
++        IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, 0));
++        IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, -1));
++    }
++    else
++    {
++        IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, ipcactv_ovrl_profile_multi);
++        OnProfileLoaded();
++    }
++    RepeatFrame();
++    return "";
++}
++
++void UIManager::UpdateXSWrist()
++{
++    static int shelf = 0;
++    static bool media = false;
++    static int backend = 0;
++    static std::string status;
++    static bool confirm_save = false;
++    static Win32PerformanceData perf;
++    static bool perf_active = false;
++    const bool visible = m_OvrlHandleXSWrist != vr::k_ulOverlayHandleInvalid && vr::VROverlay()->IsOverlayVisible(m_OvrlHandleXSWrist);
++    if (perf_active != (visible && shelf == 3))
++    {
++        perf_active = visible && shelf == 3;
++        if (perf_active) perf.EnableCounters(false); else perf.DisableCounters();
++    }
++    if (!visible) return;
++    const DPRect& rect = UITextureSpaces::Get().GetRect(ui_texspace_xs_wrist);
++    const ImVec2 origin((float)rect.Min.x, (float)rect.Min.y);
++    const ImU32 pale = IM_COL32(233,238,242,255), muted = IM_COL32(169,182,193,255);
++    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32,39,46,255));
++    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(57,67,76,255));
++    ImGui::PushStyleColor(ImGuiCol_Text, pale);
++    ImGui::PushStyleColor(ImGuiCol_TextDisabled, muted);
++    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21,28,34,255));
++    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(52,65,76,255));
++    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(92,114,132,255));
++    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(21,28,34,255));
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
++    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14,14));
++    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6,8));
++    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
++        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse;
++    auto card = [&](const char* name, float y, float height) {
++        ImGui::SetNextWindowPos(ImVec2(origin.x + 32, origin.y + y));
++        ImGui::SetNextWindowSize(ImVec2(520, height));
++        ImGui::Begin(name, nullptr, flags);
++        ImGui::SetWindowFontScale(0.70f);
++    };
++    auto select_backend = [&]() {
++        ImGui::SetNextItemWidth(-1);
++        ImGui::Combo("##XSWristCapture", &backend, "Graphics Capture\0Desktop Duplication\0");
++    };
++    auto load = [&](const char* layout, bool append) {
++        status = LoadXSProfile(std::string("XS 5120 ") + layout + " - " + (backend == 0 ? "Graphics Capture" : "Desktop Duplication"), append);
++    };
++    auto set_visible = [&](unsigned int id, bool enabled) {
++        OverlayManager::Get().GetConfigData(id).ConfigBool[configid_bool_overlay_enabled] = enabled;
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, (int)id);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_overlay_enabled, enabled);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, -1);
++    };
++    if (shelf != 0)
++    {
++        card("##XSWristShelf", 32, 320);
++        const char* titles[] = {"", "PANELS / SETS", "SAVED LAYOUTS", "PC PERFORMANCE", "QUICK ACTIONS"};
++        ImGui::TextDisabled("%s", titles[shelf]);
++        ImGui::SameLine(452);
++        if (ImGui::Button("-##CloseShelf", ImVec2(36,32))) shelf = 0;
++        if (shelf == 1)
++        {
++            select_backend();
++            if (ImGui::Button("+ Full", ImVec2(152,40))) load("Add Full", true);
++            ImGui::SameLine(); if (ImGui::Button("+ Left", ImVec2(152,40))) load("Add Left Half", true);
++            ImGui::SameLine(); if (ImGui::Button("+ Right", ImVec2(152,40))) load("Add Right Half", true);
++            ImGui::BeginChild("##XSWristPanels", ImVec2(0,125), true);
++            const auto count = OverlayManager::Get().GetOverlayCount();
++            for (unsigned int i = 0; i < count; ++i)
++            {
++                ImGui::PushID((int)i);
++                auto& data = OverlayManager::Get().GetConfigData(i);
++                bool enabled = data.ConfigBool[configid_bool_overlay_enabled];
++                if (ImGui::Checkbox(data.ConfigNameStr.c_str(), &enabled)) set_visible(i, enabled);
++                ImGui::PopID();
++            }
++            if (count == 0) ImGui::TextDisabled("Add your first panel above.");
++            ImGui::EndChild();
++            ImGui::TextDisabled("Grip: move   Trigger: interact");
++        }
++        else if (shelf == 2)
++        {
++            select_backend();
++            if (ImGui::Button("Dual", ImVec2(152,40))) load("Dual", false);
++            ImGui::SameLine(); if (ImGui::Button("Thirds", ImVec2(152,40))) load("Thirds", false);
++            ImGui::SameLine(); if (ImGui::Button("Wide centre", ImVec2(152,40))) load("Wide Center", false);
++            if (ImGui::Button(confirm_save ? "Confirm replace wrist save" : "Save current as XS Wrist Saved", ImVec2(-1,40)))
++            {
++                const std::wstring saved = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/XS Wrist Saved.ini").c_str());
++                if (FileExists(saved.c_str()) && !confirm_save) confirm_save = true;
++                else { status = ConfigManager::Get().SaveMultiOverlayProfileToFile("XS Wrist Saved.ini") ? "Layout saved." : "Could not save layout."; confirm_save = false; }
++            }
++            if (ImGui::Button("Load wrist save", ImVec2(240,40))) status = LoadXSProfile("XS Wrist Saved", false);
++            ImGui::SameLine(); if (ImGui::Button("Undo layout switch", ImVec2(240,40)))
++            {
++                // Preserve the undo profile before LoadXSProfile writes a new backup.
++                const std::string folder = ConfigManager::Get().GetApplicationPath() + "profiles/";
++                const auto from = WStringConvertFromUTF8((folder + "XS Previous Layout.ini").c_str());
++                const auto to = WStringConvertFromUTF8((folder + "XS Wrist Undo.ini").c_str());
++                status = ::CopyFileW(from.c_str(), to.c_str(), FALSE) ? LoadXSProfile("XS Wrist Undo", false) : "No previous layout available.";
++            }
++            ImGui::TextWrapped("Layout buttons replace panels; your previous layout is backed up.");
++        }
++        else if (shelf == 3)
++        {
++            perf.Update();
++            ImGui::Text("CPU: %.0f%%", perf.GetCPULoadPrecentage());
++            ImGui::Text("RAM: %.1f / %.1f GB", perf.GetRAMUsedGB(), perf.GetRAMTotalGB());
++            vr::Compositor_FrameTiming timing = {}; timing.m_nSize = sizeof(timing);
++            if (vr::VRCompositor()->GetFrameTiming(&timing))
++            {
++                ImGui::Text("VR frame interval: %.2f ms", timing.m_flClientFrameIntervalMs);
++                ImGui::Text("VR app GPU: %.2f ms", timing.m_flTotalRenderGpuMs);
++                ImGui::Text("Compositor GPU: %.2f ms", timing.m_flCompositorRenderGpuMs);
++            }
++            else ImGui::TextDisabled("SteamVR frame timing unavailable");
++            ImGui::TextWrapped("Live SteamVR timings; system CPU and RAM. Counters stop when this shelf is hidden.");
++        }
++        else if (shelf == 4)
++        {
++            if (ImGui::Button("Keyboard", ImVec2(240,44))) m_VRKeyboard.GetWindow().Show();
++            ImGui::SameLine(); if (ImGui::Button("Settings", ImVec2(240,44))) m_WindowSettings.Show();
++            if (ImGui::Button("Use left wrist", ImVec2(240,44))) m_XSWristRightHand = false;
++            ImGui::SameLine(); if (ImGui::Button("Use right wrist", ImVec2(240,44))) m_XSWristRightHand = true;
++            if (ImGui::Button("Normal trigger interaction", ImVec2(-1,44)))
++            {
++                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
++                IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
++            }
++            ImGui::TextWrapped("Point with the opposite controller. Grip moves an unlocked panel; trigger clicks it. No Move mode or locking is needed.");
++        }
++        if (!status.empty()) ImGui::TextWrapped("%s", status.c_str());
++        ImGui::End();
++    }
++    card("##XSWristBase", 360, 176);
++    SYSTEMTIME local; ::GetLocalTime(&local);
++    const ULONGLONG seconds = ::GetTickCount64() / 1000;
++    static const ULONGLONG session_start = seconds;
++    ImGui::SetWindowFontScale(0.55f); ImGui::TextDisabled("W A Y V R  X S");
++    ImGui::SetWindowFontScale(1.18f); ImGui::Text("%02u:%02u", local.wHour, local.wMinute);
++    const char* labels[] = {"Panels", "Layouts", "PC", "Media", "Actions"};
++    for (int i = 0; i < 5; ++i)
++    {
++        ImGui::SetCursorPos(ImVec2(230.0f + i * 54, 18));
++        const bool active = i == 3 ? media : shelf == (i == 4 ? 4 : i + 1);
++        if (active) ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(213,226,235,255));
++        ImGui::PushID(i);
++        if (ImGui::Button("##ShelfIcon", ImVec2(48,54)))
++        {
++            if (i == 3) media = !media;
++            else { const int next = i == 4 ? 4 : i + 1; shelf = shelf == next ? 0 : next; confirm_save = false; }
++        }
++        if (active) ImGui::PopStyleColor();
++        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", labels[i]);
++        const ImU32 ink = active ? IM_COL32(21,28,34,255) : pale;
++        const ImVec2 a = ImGui::GetItemRectMin();
++        ImDrawList* draw = ImGui::GetWindowDrawList();
++        auto point = [&](float x, float y) { return ImVec2(a.x+12+x, a.y+15+y); };
++        auto line = [&](float x, float y, float xx, float yy) { draw->AddLine(point(x,y), point(xx,yy), ink, 1.6f); };
++        if (i == 0) { draw->AddRect(point(4,4), point(20,20), ink, 2, 0, 1.6f); line(4,10,20,10); line(10,10,10,20); }
++        if (i == 1) { draw->AddRect(point(3,7), point(21,20), ink, 2, 0, 1.6f); line(3,7,3,5); line(3,5,10,5); line(10,5,12,7); }
++        if (i == 2) { line(5,20,5,11); line(12,20,12,4); line(19,20,19,8); }
++        if (i == 3) { line(9,18,9,5); line(9,5,19,3); line(19,3,19,16); draw->AddCircleFilled(point(6,18),3,ink); draw->AddCircleFilled(point(16,16),3,ink); }
++        if (i == 4) { line(3,6,21,6); line(3,12,21,12); line(3,18,21,18); draw->AddCircleFilled(point(8,6),2.5f,ink); draw->AddCircleFilled(point(16,12),2.5f,ink); draw->AddCircleFilled(point(10,18),2.5f,ink); }
++        ImGui::PopID();
++    }
++    ImGui::SetWindowFontScale(0.55f);
++    ImGui::SetCursorPos(ImVec2(18,86));
++    const auto elapsed = seconds - session_start;
++    ImGui::TextDisabled("%04u-%02u-%02u   Session %02llu:%02llu", local.wYear, local.wMonth, local.wDay, elapsed/3600, elapsed/60%60);
++    ImGui::SetCursorPos(ImVec2(14,122));
++    ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(origin.x+46,origin.y+482), ImVec2(origin.x+538,origin.y+522), IM_COL32(21,28,34,255),12);
++    ImGui::SetCursorPos(ImVec2(26,130));
++    ImGui::Text("%u panels                                      SteamVR", OverlayManager::Get().GetOverlayCount());
++    ImGui::End();
++    float battery_y = 544;
++    if (media)
++    {
++        card("##XSWristMedia", 544, 90);
++        ImGui::TextDisabled("WINDOWS MEDIA");
++        const WORD keys[] = {VK_MEDIA_PREV_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK};
++        const char* buttons[] = {"Previous", "Play / Pause", "Next"};
++        for (int i=0; i<3; ++i)
++        {
++            if (i) ImGui::SameLine();
++            if (ImGui::Button(buttons[i], ImVec2(156,36)))
++            {
++                INPUT inputs[2] = {}; inputs[0].type = inputs[1].type = INPUT_KEYBOARD;
++                inputs[0].ki.wVk = inputs[1].ki.wVk = keys[i]; inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
++                if (::SendInput(2, inputs, sizeof(INPUT)) != 2) status = "Windows rejected the media key.";
++            }
++        }
++        ImGui::End(); battery_y += 98;
++    }
++    // Runtime-reported batteries only. Omit absent values instead of showing fabricated levels.
++    struct Battery { std::string name; float charge; bool charging; };
++    static std::vector<Battery> batteries;
++    static ULONGLONG battery_tick = 0;
++    if (::GetTickCount64() - battery_tick >= 1000)
++    {
++        battery_tick = ::GetTickCount64(); batteries.clear();
++        for (uint32_t device=0; device<vr::k_unMaxTrackedDeviceCount; ++device)
++        {
++            if (!vr::VRSystem()->IsTrackedDeviceConnected(device)) continue;
++            vr::ETrackedPropertyError error;
++            if (!vr::VRSystem()->GetBoolTrackedDeviceProperty(device, vr::Prop_DeviceProvidesBatteryStatus_Bool, &error) || error != vr::TrackedProp_Success) continue;
++            const float charge = vr::VRSystem()->GetFloatTrackedDeviceProperty(device, vr::Prop_DeviceBatteryPercentage_Float, &error);
++            if (error != vr::TrackedProp_Success || charge < 0 || charge > 1) continue;
++            const auto role = vr::VRSystem()->GetControllerRoleForTrackedDeviceIndex(device);
++            const std::string name = device == vr::k_unTrackedDeviceIndex_Hmd ? "HMD" : role == vr::TrackedControllerRole_LeftHand ? "Left" : role == vr::TrackedControllerRole_RightHand ? "Right" : "Tracker " + std::to_string(device);
++            batteries.push_back({name, charge, vr::VRSystem()->GetBoolTrackedDeviceProperty(device, vr::Prop_DeviceIsCharging_Bool)});
++        }
++    }
++    if (!batteries.empty())
++    {
++        card("##XSWristBatteries", battery_y, 100);
++        ImGui::BeginChild("##BatteryList", ImVec2(0,0));
++        for (size_t i=0; i<batteries.size(); ++i)
++        {
++            const auto& battery = batteries[i];
++            if (i % 3) ImGui::SameLine((float)(i%3)*160+8);
++            ImGui::TextColored(battery.charge <= 0.2f ? ImVec4(0.90f,0.64f,0.64f,1) : ImVec4(0.91f,0.93f,0.95f,1), "%s %d%%%s", battery.name.c_str(), (int)(battery.charge*100+0.5f), battery.charging ? "+" : "");
++        }
++        ImGui::EndChild(); ImGui::End();
++    }
++    ImGui::PopStyleVar(4);
++    ImGui::PopStyleColor(8);
++}
+diff --git a/src/DesktopPlusUI/UIManager.h b/src/DesktopPlusUI/UIManager.h
+index 6a62df5..15634c1 100644
+--- a/src/DesktopPlusUI/UIManager.h
++++ b/src/DesktopPlusUI/UIManager.h
+@@ -45,6 +45,7 @@ enum UITexspaceID
+     ui_texspace_keyboard,
+     ui_texspace_performance_monitor,
+     ui_texspace_aux_ui,
++    ui_texspace_xs_wrist,
+     ui_texspace_MAX
+ };
+ 
+@@ -140,6 +141,9 @@ class UIManager
+         vr::VROverlayHandle_t m_OvrlHandleOverlayProperties;
+         vr::VROverlayHandle_t m_OvrlHandleKeyboard;
+         vr::VROverlayHandle_t m_OvrlHandleAuxUI;
++        vr::VROverlayHandle_t m_OvrlHandleXSWrist = vr::k_ulOverlayHandleInvalid;
++        bool m_XSWristEnabled = true;
++        bool m_XSWristRightHand = false;
+         vr::VROverlayHandle_t m_OvrlHandleDPlusDashboard;   //Cached to minimize FindOverlay() calls
+         vr::VROverlayHandle_t m_OvrlHandleSystemUI;         //Cached to minimize FindOverlay() calls
+         bool m_OvrlVisible;
+@@ -206,7 +210,7 @@ class UIManager
+         vr::VROverlayHandle_t GetOverlayHandleAuxUI()              const;
+         vr::VROverlayHandle_t GetOverlayHandleDPlusDashboard()     const;
+         vr::VROverlayHandle_t GetOverlayHandleSystemUI()           const;
+-        std::array<vr::VROverlayHandle_t, 6> GetUIOverlayHandles() const;
++        std::array<vr::VROverlayHandle_t, 7> GetUIOverlayHandles() const;
+         bool IsDummyOverlayTransformUnstable() const;
+         void SendUIIntersectionMaskToDashboardApp(std::vector<vr::VROverlayIntersectionMaskPrimitive_t>& primitives) const;
+ 
+@@ -215,6 +219,12 @@ class UIManager
+ 
+         //This can be called by functions knowingly making changes which will cause visible layout re-alignment due to ImGui's nature of intermediate UI
+         //This will cause 2 extra frames to be calculated but thrown away instantly to be more pleasing to the eye. In rare cases more are needed and can be specified instead
++        vr::VROverlayHandle_t GetOverlayHandleXSWrist() const { return m_OvrlHandleXSWrist; }
++        bool& XSWristEnabled() { return m_XSWristEnabled; }
++        void UpdateXSWristTracking();
++        void UpdateXSWrist();
++        std::string LoadXSProfile(const std::string& profile, bool append);
++
+         void RepeatFrame(int extra_frame_count = 2); 
+         bool GetRepeatFrame() const;
+         void DecreaseRepeatFrameCount();
 diff --git a/src/DesktopPlusUI/WindowSettings.cpp b/src/DesktopPlusUI/WindowSettings.cpp
-index 8326986..ded3020 100644
+index 8326986..c06dc8e 100644
 --- a/src/DesktopPlusUI/WindowSettings.cpp
 +++ b/src/DesktopPlusUI/WindowSettings.cpp
-@@ -2855,11 +2855,68 @@ void WindowSettings::UpdatePageProfiles()
+@@ -2855,11 +2855,100 @@ void WindowSettings::UpdatePageProfiles()
  
      ImGui::Indent();
  
@@ -11,6 +783,7 @@ index 8326986..ded3020 100644
 +    static int xs_capture_method = 0;
 +    static std::string xs_error;
 +    ImGui::TextUnformatted("XS Ultrawide - Desktop 1, 5120x1440");
++    ImGui::Checkbox("Show XS wrist shelf", &UIManager::Get()->XSWristEnabled());
 +    ImGui::SetNextItemWidth(-1.0f);
 +    ImGui::Combo("##XSCaptureMethod", &xs_capture_method, "Graphics Capture\0Desktop Duplication\0");
 +    const char* xs_labels[] = {"Dual##XS", "Thirds##XS", "Wide center##XS"};
@@ -39,6 +812,8 @@ index 8326986..ded3020 100644
 +            }
 +            else
 +            {
++                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
++                IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
 +                m_ProfileSelectionName = profile;
 +                IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, UIManager::Get()->GetWindowHandle());
 +                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, ipcactv_ovrl_profile_multi);
@@ -54,6 +829,35 @@ index 8326986..ded3020 100644
 +        }
 +    }
 +    ImGui::TextWrapped("Replaces the overlay set. A backup is saved as XS Previous Layout.");
++
++    ImGui::TextUnformatted("Add a panel (keeps your current panels)");
++    const char* xs_add_labels[] = {"Full screen##XSAdd", "Left half##XSAdd", "Right half##XSAdd"};
++    const char* xs_add_names[] = {"Add Full", "Add Left Half", "Add Right Half"};
++    for (int i = 0; i < 3; ++i)
++    {
++        if (i != 0) ImGui::SameLine();
++        if (ImGui::Button(xs_add_labels[i]))
++        {
++            const std::string profile = std::string("XS 5120 ") + xs_add_names[i] + " - " +
++                ((xs_capture_method == 0) ? "Graphics Capture" : "Desktop Duplication");
++            const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + profile + ".ini").c_str());
++            xs_error.clear();
++            std::vector<char> included(1, true);
++            if (!FileExists(path.c_str()) || !ConfigManager::Get().LoadMultiOverlayProfileFromFile(profile + ".ini", false, &included))
++                xs_error = "Could not add the XS panel; extract the complete XS package.";
++            else
++            {
++                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
++                IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
++                IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, UIManager::Get()->GetWindowHandle());
++                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, 0));
++                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, -1));
++                UIManager::Get()->RepeatFrame();
++            }
++        }
++    }
++    ImGui::TextWrapped("Point and hold grip to move; release to place. Trigger clicks without locking. Turn off Move mode for normal interaction.");
++
 +    if (!xs_error.empty())
 +    {
 +        ImGui::PushStyleColor(ImGuiCol_Text, Style_ImGuiCol_TextError);
@@ -72,8 +876,21 @@ index 8326986..ded3020 100644
  
      //List profiles
      int index = 0;
+diff --git a/src/Shared/InterprocessMessaging.h b/src/Shared/InterprocessMessaging.h
+index 083852b..2ac4e7f 100644
+--- a/src/Shared/InterprocessMessaging.h
++++ b/src/Shared/InterprocessMessaging.h
+@@ -15,7 +15,7 @@
+ LPCWSTR const g_WindowClassNameDashboardApp = L"elvdesktop";
+ LPCWSTR const g_WindowClassNameUIApp        = L"elvdesktopUI";
+ LPCWSTR const g_WindowClassNameElevatedMode = L"elvdesktopelevated";
+-const char* const g_AppKeyDashboardApp      = "steam.overlay.1494460";                  //1494460 is the appid on Steam, but we just use this for all builds
++const char* const g_AppKeyDashboardApp      = "chineko.DesktopPlusXS";                     //Separate XS controller defaults from the Steam app
+ const char* const g_AppKeyUIApp             = "elvissteinjr.DesktopPlusUI";
+ const char* const g_AppKeyTheaterScreen     = "elvissteinjr.DesktopPlusTheaterScreen";  //We need an app with "starts_theater_mode", but we can't add that to the app manifest written by Steam
+ 
 diff --git a/src/Shared/Logging.h b/src/Shared/Logging.h
-index db5fc7e..a93647e 100644
+index db5fc7e..3d3d4c9 100644
 --- a/src/Shared/Logging.h
 +++ b/src/Shared/Logging.h
 @@ -7,7 +7,7 @@
@@ -81,7 +898,7 @@ index db5fc7e..a93647e 100644
  //DPLUS_SHA is set externally for nightly builds to use the commit hash in version string
  //DPLUS_SHA is also always defined but usually empty... so we detect this with some constexpr trickery instead of messing with the build system even more
 -constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ 3.6" : "Desktop+ " DPLUS_SHA;
-+constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.1.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
++constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.2.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
  
  //Version written to config file
  //Only really increased when backward incompatible changes were made (we fall back to default values when things are missing usually)
