@@ -1,5 +1,19 @@
 # WayVR XS roadmap
 
+## Windows / Desktop+ XS next session (2026-10-22)
+
+Work is paused at the user's request. Screen-panel grip grabbing in Desktop+ XS
+0.3.1 is now headset-confirmed working.
+
+Requested for the next session:
+
+1. Add a VRAM usage graph to the performance monitor.
+2. Disable the default screen and menu bar spawning automatically under SteamVR.
+   Inspect the startup/dashboard auto-show behavior when resuming; this is
+   separate from the SteamVR application autostart setting, which defaults off.
+
+The remaining sections track the Linux build.
+
 ## Current checkpoint
 
 Independent movement, interactive app selection/switching, dropdown alignment,
