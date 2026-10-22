@@ -285,10 +285,19 @@ index c8f1e49..ed5f0e6 100644
  
      for (const char* key : ui_overlay_keys)
 diff --git a/src/DesktopPlus/OutputManager.cpp b/src/DesktopPlus/OutputManager.cpp
-index 280335d..7e80174 100644
+index 280335d..cc2ea18 100644
 --- a/src/DesktopPlus/OutputManager.cpp
 +++ b/src/DesktopPlus/OutputManager.cpp
-@@ -5339,6 +5339,9 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+@@ -2213,6 +2213,8 @@ bool OutputManager::GetOverlayInputActive() const
+ 
+ DWORD OutputManager::GetMaxRefreshDelay() const
+ {
++    // Static desktop capture must not throttle controller-driven panel transforms.
++    if (m_OverlayDragger.IsDragActive() || m_OverlayDragger.IsDragGestureActive()) return 3;
+     if ( (m_OvrlActiveCount != 0) || (m_OvrlDashboardActive) || (m_LaserPointer.IsActive()) )
+     {
+         //Actually causes extreme load while not really being necessary (looks nice tho)
+@@ -5339,6 +5341,9 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
          }
          case vr::VREvent_MouseButtonDown:
          {
@@ -298,7 +307,7 @@ index 280335d..7e80174 100644
              ActionManager& action_manager = ConfigManager::Get().GetActionManager();
  
              if (ConfigManager::GetValue(configid_bool_state_overlay_selectmode))
-@@ -5505,7 +5508,7 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+@@ -5505,7 +5510,7 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
                      }
                  }
              }
@@ -308,7 +317,7 @@ index 280335d..7e80174 100644
                  if ((vr_event.data.mouse.button == vr::VRMouseButton_Left) && (m_OverlayDragger.IsDragActive()))
                  {
 diff --git a/src/DesktopPlusUI/DesktopPlusUI.cpp b/src/DesktopPlusUI/DesktopPlusUI.cpp
-index 70b3aae..3cfa50b 100644
+index 70b3aae..8230e33 100644
 --- a/src/DesktopPlusUI/DesktopPlusUI.cpp
 +++ b/src/DesktopPlusUI/DesktopPlusUI.cpp
 @@ -326,6 +326,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
@@ -326,7 +335,15 @@ index 70b3aae..3cfa50b 100644
              //Handle OpenVR events for the Aux UI
              rect_v4 = UITextureSpaces::Get().GetRectAsVec4(ui_texspace_aux_ui);
  
-@@ -478,6 +486,15 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
+@@ -419,6 +427,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
+ 
+         //Handle delayed ICP messages that need to be handled within an ImGui frame now
+         ui_manager.HandleDelayedIPCMessages();
++        ui_manager.ProcessXSPanelClose();
+ 
+         if (!desktop_mode)
+         {
+@@ -478,6 +487,15 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
              ImGui::GetMainViewport()->Size.y = io.DisplaySize.y;
  
              ui_manager.GetAuxUI().Update();
@@ -342,7 +359,7 @@ index 70b3aae..3cfa50b 100644
          }
          else
          {
-@@ -802,6 +819,7 @@ void RefreshOverlayTextureSharing()
+@@ -802,6 +820,7 @@ void RefreshOverlayTextureSharing()
      vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleOverlayProperties(), g_vrTex.Get());
      vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleKeyboard(),          g_vrTex.Get());
      vr::VROverlayEx()->SetSharedOverlayTexture(UIManager::Get()->GetOverlayHandleOverlayBar(), UIManager::Get()->GetOverlayHandleAuxUI(),             g_vrTex.Get());
@@ -350,11 +367,59 @@ index 70b3aae..3cfa50b 100644
      //Also schedule for performance overlays, in case there are any
      UIManager::Get()->GetPerformanceWindow().ScheduleOverlaySharedTextureUpdate();
  }
+diff --git a/src/DesktopPlusUI/FloatingUI.cpp b/src/DesktopPlusUI/FloatingUI.cpp
+index 3692383..63ac7f7 100644
+--- a/src/DesktopPlusUI/FloatingUI.cpp
++++ b/src/DesktopPlusUI/FloatingUI.cpp
+@@ -265,7 +265,7 @@ void FloatingUI::UpdateUITargetState()
+         const DPRect& rect_floating_ui = UITextureSpaces::Get().GetRect(ui_texspace_floating_ui);
+         const float floating_ui_height_m = m_Width * ((float)rect_floating_ui.GetHeight() / (float)rect_floating_ui.GetWidth());
+ 
+-        matrix.translate_relative(0.0f, -floating_ui_height_m / 3.0f, 0.0f);
++        matrix.translate_relative(0.0f, -floating_ui_height_m / 2.0f, 0.0f);
+ 
+         //Additional offset for theater screen
+         if (overlay_data.ConfigInt[configid_int_overlay_origin] == ovrl_origin_theater_screen) 
+@@ -400,3 +400,13 @@ WindowFloatingUIActionBar& FloatingUI::GetActionBarWindow()
+ {
+     return m_WindowActionBar;
+ }
++
++void FloatingUI::ResetTarget()
++{
++    m_Visible = false; m_Alpha = 0; m_AutoFitFrames = 0; m_FadeOutDelayCount = 0;
++    m_IsSwitchingTarget = false;
++    m_OvrlHandleCurrentUITarget = vr::k_ulOverlayHandleInvalid;
++    m_OvrlIDCurrentUITarget = 0;
++    m_WindowActionBar.Hide(true);
++    vr::VROverlay()->HideOverlay(UIManager::Get()->GetOverlayHandleFloatingUI());
++}
+diff --git a/src/DesktopPlusUI/FloatingUI.h b/src/DesktopPlusUI/FloatingUI.h
+index 6c157d9..22917dd 100644
+--- a/src/DesktopPlusUI/FloatingUI.h
++++ b/src/DesktopPlusUI/FloatingUI.h
+@@ -28,6 +28,7 @@ class FloatingUI
+     public:
+         FloatingUI();
+         void Update();
++        void ResetTarget();
+         void UpdateUITargetState();
+         bool IsVisible() const;
+         float GetAlpha() const;
 diff --git a/src/DesktopPlusUI/UIManager.cpp b/src/DesktopPlusUI/UIManager.cpp
-index a61e3c5..11d3cb8 100644
+index a61e3c5..168bda8 100644
 --- a/src/DesktopPlusUI/UIManager.cpp
 +++ b/src/DesktopPlusUI/UIManager.cpp
-@@ -65,8 +65,10 @@ void UITextureSpaces::Init(bool desktop_mode, bool keyboard_editor_mode)
+@@ -1,4 +1,8 @@
+ #include "UIManager.h"
++#include "Ini.h"
++#include "TextureManager.h"
++#include <dxgi.h>
++#include <sstream>
+ 
+ #include <windowsx.h>
+ 
+@@ -65,8 +69,10 @@ void UITextureSpaces::Init(bool desktop_mode, bool keyboard_editor_mode)
                                                              m_TexspaceRects[ui_texspace_total].GetWidth(),
                                                              m_TexspaceRects[ui_texspace_keyboard].GetBR().y + vertical_spacing + 550};
  
@@ -366,7 +431,19 @@ index a61e3c5..11d3cb8 100644
      }
      else
      {
-@@ -147,6 +149,13 @@ bool UIManager::IdleState::ShouldIdle()
+@@ -125,6 +131,11 @@ bool UIManager::IdleState::ShouldIdle()
+     }
+ 
+     UIManager& ui_manager = *UIManager::Get();
++    if (ui_manager.GetOverlayDragger().IsDragActive() || ui_manager.GetOverlayDragger().IsDragGestureActive())
++    {
++        SetLastActiveTick(::GetTickCount64());
++        return false;
++    }
+ 
+     //Temporary setting to disable throttling in case it causes issues somewhere, matches old basic idle logic
+     if (!ConfigManager::GetValue(configid_bool_performance_ui_auto_throttle))
+@@ -147,6 +158,13 @@ bool UIManager::IdleState::ShouldIdle()
          return false;
      }
  
@@ -380,7 +457,7 @@ index a61e3c5..11d3cb8 100644
      //Performance Monitor needs constant updates, but it'll be throttled in GetFrameSkipValue() if possible
      if (ui_manager.GetPerformanceWindow().IsVisible())
      {
-@@ -186,6 +195,8 @@ bool UIManager::IdleState::ShouldIdle()
+@@ -186,11 +204,14 @@ bool UIManager::IdleState::ShouldIdle()
  
  bool UIManager::IdleState::ShouldDeepIdle()
  {
@@ -389,7 +466,13 @@ index a61e3c5..11d3cb8 100644
      return ((ShouldIdle()) && (m_LastActiveTick + s_MsBeforeDeepIdle < ::GetTickCount64()));
  }
  
-@@ -402,6 +413,7 @@ void UIManager::SetOverlayInputEnabled(bool is_enabled)
+ int UIManager::IdleState::GetFrameSkipValue()
+ {
++    if (UIManager::Get()->GetOverlayDragger().IsDragActive() || UIManager::Get()->GetOverlayDragger().IsDragGestureActive()) return 0;
+     //If outside of active time, throttle to 1 frameskip or just use user frameskip value if it's higher
+     //This mainly causes Performance Monitor to animated at half rate. Other animating things are supposed to add active time
+     return std::max((m_LastActiveTick + s_MsBeforeIdle < ::GetTickCount64()) ? 1 : 0, ConfigManager::GetValue(configid_int_performance_ui_frameskip));
+@@ -402,6 +423,7 @@ void UIManager::SetOverlayInputEnabled(bool is_enabled)
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleOverlayProperties, input_method);
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleKeyboard,          input_method);
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleAuxUI,             input_method);
@@ -397,7 +480,7 @@ index a61e3c5..11d3cb8 100644
  }
  
  UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t overlay_handle) const
-@@ -420,6 +432,7 @@ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t over
+@@ -420,6 +442,7 @@ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t over
      else if (overlay_handle == m_OvrlHandleAuxUI)
          overlay_texspace = ui_texspace_aux_ui;
  
@@ -405,20 +488,20 @@ index a61e3c5..11d3cb8 100644
      return overlay_texspace;
  }
  
-@@ -549,6 +562,12 @@ vr::EVRInitError UIManager::InitOverlay()
+@@ -549,6 +572,12 @@ vr::EVRInitError UIManager::InitOverlay()
              vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleKeyboard,           &mouse_scale);
              vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleAuxUI,              &mouse_scale);
  
 +            if (vr::VROverlay()->CreateOverlay("chineko.DesktopPlusXSWrist", "Desktop+ XS Wrist", &m_OvrlHandleXSWrist) == vr::VROverlayError_None)
 +            {
-+                vr::VROverlay()->SetOverlayWidthInMeters(m_OvrlHandleXSWrist, 0.34f);
++                vr::VROverlay()->SetOverlayWidthInMeters(m_OvrlHandleXSWrist, m_XSWristWidth);
 +                vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleXSWrist, &mouse_scale);
 +                vr::VROverlay()->SetOverlayFlag(m_OvrlHandleXSWrist, vr::VROverlayFlags_SendVRSmoothScrollEvents, true);
 +            }
              SetOverlayInputEnabled(true);
  
              //Setup texture bounds for all overlays
-@@ -594,6 +613,11 @@ vr::EVRInitError UIManager::InitOverlay()
+@@ -594,6 +623,11 @@ vr::EVRInitError UIManager::InitOverlay()
              bounds.vMax = rect_keyboard.GetBR().y / tex_height;
              vr::VROverlay()->SetOverlayTextureBounds(m_OvrlHandleKeyboard, &bounds);
  
@@ -430,7 +513,32 @@ index a61e3c5..11d3cb8 100644
              //Set curve pitch for overlay bar. This adjusts the pitch to match the SteamVR dashboard
              vr::VROverlay()->SetOverlayPreCurvePitch(m_OvrlHandleOverlayBar, 0.20f);
          }
-@@ -1282,9 +1306,9 @@ vr::VROverlayHandle_t UIManager::GetOverlayHandleSystemUI() const
+@@ -850,7 +884,12 @@ void UIManager::HandleIPCMessage(const MSG& msg, bool handle_delayed)
+                 }
+                 case ipcact_lpointer_ui_drag:
+                 {
+-                    (msg.lParam == 1) ? StartOverlayDrag(ConfigManager::GetValue(configid_handle_state_dplus_laser_pointer_target_overlay)) : FinishOverlayDrag();
++                    if (msg.lParam == 1)
++                    {
++                        StartOverlayDrag(ConfigManager::GetValue(configid_handle_state_dplus_laser_pointer_target_overlay));
++                        m_XSUIGripDrag = m_OverlayDragger.IsDragActive();
++                    }
++                    else if (m_XSUIGripDrag) FinishOverlayDrag();
+                     break;
+                 }
+             }
+@@ -1096,6 +1135,10 @@ bool UIManager::HasDelayedIPCMessages() const
+ 
+ void UIManager::OnInitDone()
+ {
++    Ini xs_preferences(WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "xs-ui.ini").c_str()));
++    m_XSWristWidth = clamp(xs_preferences.ReadInt("Wrist", "WidthCM", 20) / 100.0f, 0.12f, 0.32f);
++    m_XSWristRightHand = xs_preferences.ReadBool("Wrist", "RightHand", false);
++    m_XSWristEnabled = xs_preferences.ReadBool("Wrist", "Enabled", true);
+     //Re-apply active overlay ID since the first time config load couldn't apply it properly with the overlay not yet existing
+     unsigned int overlay_props_active_id = m_WindowOverlayProperties.GetActiveOverlayID();
+     m_WindowOverlayProperties.SetActiveOverlayID(overlay_props_active_id, true);
+@@ -1282,9 +1325,9 @@ vr::VROverlayHandle_t UIManager::GetOverlayHandleSystemUI() const
      return m_OvrlHandleSystemUI;
  }
  
@@ -442,7 +550,7 @@ index a61e3c5..11d3cb8 100644
  }
  
  bool UIManager::IsDummyOverlayTransformUnstable() const
-@@ -1337,6 +1361,8 @@ DPRect UIManager::CalcRectForActiveTexspace()
+@@ -1337,6 +1380,8 @@ DPRect UIManager::CalcRectForActiveTexspace()
      if (m_AuxUI.IsActive())
          (rect.GetWidth() == 0) ? rect = UITextureSpaces::Get().GetRect(ui_texspace_aux_ui)              : rect.Add(UITextureSpaces::Get().GetRect(ui_texspace_aux_ui));
  
@@ -451,13 +559,31 @@ index a61e3c5..11d3cb8 100644
      return rect;
  }
  
-@@ -2501,3 +2527,274 @@ void UIManager::TriggerLaserPointerHaptics(vr::VROverlayHandle_t overlay_handle,
+@@ -2301,7 +2346,7 @@ void UIManager::UpdateOverlayDrag()
+ 
+         vr::VROverlayHandle_t drag_overlay_handle = m_OverlayDragger.GetDragOverlayHandle();
+ 
+-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
++        if (!m_XSUIGripDrag && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+         {
+             FinishOverlayDrag();
+             return;
+@@ -2386,6 +2431,7 @@ void UIManager::StartOverlayDrag(vr::VROverlayHandle_t overlay_handle)
+ 
+ void UIManager::FinishOverlayDrag()
+ {
++    m_XSUIGripDrag = false;
+     vr::VROverlayHandle_t drag_overlay_handle = m_OverlayDragger.GetDragOverlayHandle();
+     Matrix4 matrix_relative_offset = m_OverlayDragger.DragFinish();
+ 
+@@ -2501,3 +2547,471 @@ void UIManager::TriggerLaserPointerHaptics(vr::VROverlayHandle_t overlay_handle,
          IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_lpointer_trigger_haptics, device_index);
      }
  }
 +void UIManager::UpdateXSWristTracking()
 +{
 +    if (m_OvrlHandleXSWrist == vr::k_ulOverlayHandleInvalid) return;
++    vr::VROverlay()->SetOverlayWidthInMeters(m_OvrlHandleXSWrist, m_XSWristWidth);
 +    const auto role = m_XSWristRightHand ? vr::TrackedControllerRole_RightHand : vr::TrackedControllerRole_LeftHand;
 +    const auto device = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(role);
 +    vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount] = {};
@@ -539,11 +665,12 @@ index a61e3c5..11d3cb8 100644
 +        ImGui::SetWindowFontScale(0.70f);
 +    };
 +    auto select_backend = [&]() {
++        DrawXSMonitorSelector();
 +        ImGui::SetNextItemWidth(-1);
 +        ImGui::Combo("##XSWristCapture", &backend, "Graphics Capture\0Desktop Duplication\0");
 +    };
 +    auto load = [&](const char* layout, bool append) {
-+        status = LoadXSProfile(std::string("XS 5120 ") + layout + " - " + (backend == 0 ? "Graphics Capture" : "Desktop Duplication"), append);
++        status = ApplyXSLayout(layout, backend == 0 ? 1 : 0);
 +    };
 +    auto set_visible = [&](unsigned int id, bool enabled) {
 +        OverlayManager::Get().GetConfigData(id).ConfigBool[configid_bool_overlay_enabled] = enabled;
@@ -556,23 +683,29 @@ index a61e3c5..11d3cb8 100644
 +        card("##XSWristShelf", 32, 320);
 +        const char* titles[] = {"", "PANELS / SETS", "SAVED LAYOUTS", "PC PERFORMANCE", "QUICK ACTIONS"};
 +        ImGui::TextDisabled("%s", titles[shelf]);
-+        ImGui::SameLine(452);
-+        if (ImGui::Button("-##CloseShelf", ImVec2(36,32))) shelf = 0;
++        ImGui::SameLine(440);
++        if (ImGui::Button("X##CloseShelf", ImVec2(48,32))) shelf = 0;
 +        if (shelf == 1)
 +        {
 +            select_backend();
 +            if (ImGui::Button("+ Full", ImVec2(152,40))) load("Add Full", true);
 +            ImGui::SameLine(); if (ImGui::Button("+ Left", ImVec2(152,40))) load("Add Left Half", true);
 +            ImGui::SameLine(); if (ImGui::Button("+ Right", ImVec2(152,40))) load("Add Right Half", true);
-+            ImGui::BeginChild("##XSWristPanels", ImVec2(0,125), true);
++            ImGui::BeginChild("##XSWristPanels", ImVec2(0,110), true);
 +            const auto count = OverlayManager::Get().GetOverlayCount();
 +            for (unsigned int i = 0; i < count; ++i)
 +            {
 +                ImGui::PushID((int)i);
 +                auto& data = OverlayManager::Get().GetConfigData(i);
 +                bool enabled = data.ConfigBool[configid_bool_overlay_enabled];
-+                if (ImGui::Checkbox(data.ConfigNameStr.c_str(), &enabled)) set_visible(i, enabled);
++                if (ImGui::Checkbox("##Visible", &enabled)) set_visible(i, enabled);
++                ImGui::SameLine();
++                const std::string name = data.ConfigNameStr;
++                ImGui::TextUnformatted(name.substr(0, 24).c_str());
++                ImGui::SameLine(405);
++                const bool remove = ImGui::Button("X##ClosePanel", ImVec2(44,30));
 +                ImGui::PopID();
++                if (remove) { CloseXSPanel(i); break; }
 +            }
 +            if (count == 0) ImGui::TextDisabled("Add your first panel above.");
 +            ImGui::EndChild();
@@ -604,24 +737,43 @@ index a61e3c5..11d3cb8 100644
 +        else if (shelf == 3)
 +        {
 +            perf.Update();
-+            ImGui::Text("CPU: %.0f%%", perf.GetCPULoadPrecentage());
-+            ImGui::Text("RAM: %.1f / %.1f GB", perf.GetRAMUsedGB(), perf.GetRAMTotalGB());
++            static float cpu_history[120] = {}, gpu_history[120] = {};
++            static int history_offset = 0, history_count = 0;
++            static ULONGLONG last_sample = 0;
 +            vr::Compositor_FrameTiming timing = {}; timing.m_nSize = sizeof(timing);
-+            if (vr::VRCompositor()->GetFrameTiming(&timing))
++            const bool timing_valid = vr::VRCompositor()->GetFrameTiming(&timing);
++            if (::GetTickCount64() - last_sample >= 1000)
 +            {
-+                ImGui::Text("VR frame interval: %.2f ms", timing.m_flClientFrameIntervalMs);
-+                ImGui::Text("VR app GPU: %.2f ms", timing.m_flTotalRenderGpuMs);
-+                ImGui::Text("Compositor GPU: %.2f ms", timing.m_flCompositorRenderGpuMs);
++                last_sample = ::GetTickCount64();
++                cpu_history[history_offset] = perf.GetCPULoadPrecentage();
++                gpu_history[history_offset] = timing_valid ? timing.m_flTotalRenderGpuMs : 0;
++                history_offset = (history_offset+1)%120; history_count = std::min(history_count+1,120);
 +            }
-+            else ImGui::TextDisabled("SteamVR frame timing unavailable");
-+            ImGui::TextWrapped("Live SteamVR timings; system CPU and RAM. Counters stop when this shelf is hidden.");
++            ImGui::PushStyleColor(ImGuiCol_PlotLines, IM_COL32(160,187,207,255));
++            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, IM_COL32(160,187,207,255));
++            char cpu_label[64]; sprintf_s(cpu_label,"CPU %.0f%%",perf.GetCPULoadPrecentage());
++            ImGui::PlotLines("##XSCPUHistory",cpu_history,history_count,history_count==120 ? history_offset : 0,cpu_label,0,100,ImVec2(-1,60));
++            if (timing_valid)
++            {
++                char gpu_label[80]; sprintf_s(gpu_label,"VR GPU %.2f ms",timing.m_flTotalRenderGpuMs);
++                ImGui::PlotLines("##XSGPUHistory",gpu_history,history_count,history_count==120 ? history_offset : 0,gpu_label,0,std::max(16.0f,timing.m_flTotalRenderGpuMs*1.2f),ImVec2(-1,60));
++            }
++            else ImGui::TextDisabled("VR GPU timing unavailable");
++            const float ram_total = perf.GetRAMTotalGB();
++            char ram_label[80]; sprintf_s(ram_label,"RAM %.1f / %.1f GB",perf.GetRAMUsedGB(),ram_total);
++            ImGui::ProgressBar(ram_total>0 ? perf.GetRAMUsedGB()/ram_total : 0,ImVec2(-1,28),ram_label);
++            if (timing_valid) ImGui::Text("Compositor GPU %.2f ms",timing.m_flCompositorRenderGpuMs);
++            ImGui::PopStyleColor(2);
 +        }
 +        else if (shelf == 4)
 +        {
 +            if (ImGui::Button("Keyboard", ImVec2(240,44))) m_VRKeyboard.GetWindow().Show();
 +            ImGui::SameLine(); if (ImGui::Button("Settings", ImVec2(240,44))) m_WindowSettings.Show();
-+            if (ImGui::Button("Use left wrist", ImVec2(240,44))) m_XSWristRightHand = false;
-+            ImGui::SameLine(); if (ImGui::Button("Use right wrist", ImVec2(240,44))) m_XSWristRightHand = true;
++            if (ImGui::Button("Use left wrist", ImVec2(240,44))) { m_XSWristRightHand = false; SaveXSPreferences(); }
++            ImGui::SameLine(); if (ImGui::Button("Use right wrist", ImVec2(240,44))) { m_XSWristRightHand = true; SaveXSPreferences(); }
++            ImGui::SetNextItemWidth(-1);
++            ImGui::SliderFloat("##WristSize", &m_XSWristWidth, 0.12f, 0.32f, "Wrist width %.2f m");
++            if (ImGui::IsItemDeactivatedAfterEdit()) SaveXSPreferences();
 +            if (ImGui::Button("Normal trigger interaction", ImVec2(-1,44)))
 +            {
 +                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
@@ -651,7 +803,7 @@ index a61e3c5..11d3cb8 100644
 +            else { const int next = i == 4 ? 4 : i + 1; shelf = shelf == next ? 0 : next; confirm_save = false; }
 +        }
 +        if (active) ImGui::PopStyleColor();
-+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", labels[i]);
++        const bool icon_hovered = ImGui::IsItemHovered();
 +        const ImU32 ink = active ? IM_COL32(21,28,34,255) : pale;
 +        const ImVec2 a = ImGui::GetItemRectMin();
 +        ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -662,6 +814,7 @@ index a61e3c5..11d3cb8 100644
 +        if (i == 2) { line(5,20,5,11); line(12,20,12,4); line(19,20,19,8); }
 +        if (i == 3) { line(9,18,9,5); line(9,5,19,3); line(19,3,19,16); draw->AddCircleFilled(point(6,18),3,ink); draw->AddCircleFilled(point(16,16),3,ink); }
 +        if (i == 4) { line(3,6,21,6); line(3,12,21,12); line(3,18,21,18); draw->AddCircleFilled(point(8,6),2.5f,ink); draw->AddCircleFilled(point(16,12),2.5f,ink); draw->AddCircleFilled(point(10,18),2.5f,ink); }
++        if (icon_hovered) ImGui::SetTooltip("%s", labels[i]);
 +        ImGui::PopID();
 +    }
 +    ImGui::SetWindowFontScale(0.55f);
@@ -677,7 +830,7 @@ index a61e3c5..11d3cb8 100644
 +    if (media)
 +    {
 +        card("##XSWristMedia", 544, 90);
-+        ImGui::TextDisabled("WINDOWS MEDIA");
++        ImGui::TextDisabled("WINDOWS MEDIA  |  Previous / Play / Next");
 +        const WORD keys[] = {VK_MEDIA_PREV_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK};
 +        const char* buttons[] = {"Previous", "Play / Pause", "Next"};
 +        for (int i=0; i<3; ++i)
@@ -719,15 +872,184 @@ index a61e3c5..11d3cb8 100644
 +        {
 +            const auto& battery = batteries[i];
 +            if (i % 3) ImGui::SameLine((float)(i%3)*160+8);
-+            ImGui::TextColored(battery.charge <= 0.2f ? ImVec4(0.90f,0.64f,0.64f,1) : ImVec4(0.91f,0.93f,0.95f,1), "%s %d%%%s", battery.name.c_str(), (int)(battery.charge*100+0.5f), battery.charging ? "+" : "");
++            const ImVec2 pos = ImGui::GetCursorScreenPos();
++            ImVec2 size, uv_min, uv_max;
++            const TMNGRTexID icon = battery.name == "HMD" ? tmtex_icon_xsmall_origin_hmd : battery.name == "Left" ? tmtex_icon_xsmall_origin_left_hand : battery.name == "Right" ? tmtex_icon_xsmall_origin_right_hand : tmtex_icon_xsmall_origin_aux;
++            TextureManager::Get().GetTextureInfo(icon,size,uv_min,uv_max);
++            auto* draw = ImGui::GetWindowDrawList();
++            draw->AddImage(ImGui::GetIO().Fonts->TexID,pos,ImVec2(pos.x+28,pos.y+28),uv_min,uv_max,pale);
++            const ImU32 color = battery.charge <= 0.2f ? IM_COL32(230,162,162,255) : battery.charging ? IM_COL32(160,187,207,255) : pale;
++            char label[64]; sprintf_s(label,"%s %d%%%s",battery.name.c_str(),(int)(battery.charge*100+0.5f),battery.charging ? "+" : "");
++            draw->AddText(ImVec2(pos.x+34,pos.y+4),color,label);
++            draw->AddRectFilled(ImVec2(pos.x,pos.y+34),ImVec2(pos.x+146,pos.y+42),IM_COL32(21,28,34,255),4);
++            draw->AddRectFilled(ImVec2(pos.x,pos.y+34),ImVec2(pos.x+146*battery.charge,pos.y+42),color,4);
++            ImGui::Dummy(ImVec2(154,52));
 +        }
 +        ImGui::EndChild(); ImGui::End();
 +    }
 +    ImGui::PopStyleVar(4);
 +    ImGui::PopStyleColor(8);
 +}
++namespace
++{
++std::vector<int> XSCutPoints(int width, const std::string& layout)
++{
++    if (width < 4) return {};
++    std::vector<int> cuts;
++    if (layout == "Dual") cuts = {0,width/2,width};
++    else if (layout == "Thirds") cuts = {0,width/3,width*2/3,width};
++    else if (layout == "Wide Center") cuts = {0,width/4,width*3/4,width};
++    else if (layout == "Add Full") cuts = {0,width};
++    else if (layout == "Add Left Half") cuts = {0,width/2};
++    else if (layout == "Add Right Half") cuts = {width/2,width};
++    return cuts;
++}
++
++POINT XSCropOrigin(const RECT& monitor, const RECT& adapter, bool combined_ddp)
++{
++    return combined_ddp ? POINT{monitor.left-adapter.left,monitor.top-adapter.top} : POINT{0,0};
++}
++
++struct XSMonitor
++{
++    int ID;
++    RECT Bounds;
++    RECT AdapterBounds;
++    std::string Label;
++};
++
++std::vector<XSMonitor> XSGetMonitors()
++{
++    std::vector<XSMonitor> result;
++    Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
++    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory))) return result;
++    const bool ignore_virtual = ConfigManager::GetValue(configid_int_interface_wmr_ignore_vscreens) == 1;
++    int id = 0;
++    for (UINT ai=0; ; ++ai)
++    {
++        Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
++        if (factory->EnumAdapters(ai, &adapter) == DXGI_ERROR_NOT_FOUND) break;
++        DXGI_ADAPTER_DESC adapter_desc = {}; adapter->GetDesc(&adapter_desc);
++        if (ignore_virtual && wcscmp(adapter_desc.Description, L"Virtual Display Adapter") == 0) continue;
++        const size_t begin = result.size();
++        RECT all = {}; bool have_bounds = false;
++        for (UINT oi=0; ; ++oi, ++id)
++        {
++            Microsoft::WRL::ComPtr<IDXGIOutput> output;
++            if (adapter->EnumOutputs(oi, &output) == DXGI_ERROR_NOT_FOUND) break;
++            DXGI_OUTPUT_DESC desc = {}; if (FAILED(output->GetDesc(&desc))) continue;
++            const RECT rect = desc.DesktopCoordinates;
++            if (!desc.AttachedToDesktop || rect.right <= rect.left || rect.bottom <= rect.top) continue;
++            if (!have_bounds) { all = rect; have_bounds = true; } else ::UnionRect(&all, &all, &rect);
++            const std::string label = "Desktop " + std::to_string(id+1) + " - " + std::to_string(rect.right-rect.left) + "x" + std::to_string(rect.bottom-rect.top);
++            result.push_back({id,rect,{},label});
++        }
++        for (size_t i=begin; i<result.size(); ++i) result[i].AdapterBounds = all;
++    }
++    return result;
++}
++}
++
++void UIManager::DrawXSMonitorSelector()
++{
++    static std::vector<XSMonitor> monitors;
++    static ULONGLONG last = 0;
++    if (monitors.empty() || ::GetTickCount64() - last > 1000)
++    {
++        monitors = XSGetMonitors(); last = ::GetTickCount64();
++    }
++    const auto selected = std::find_if(monitors.begin(), monitors.end(), [&](const XSMonitor& m) { return m.ID == m_XSMonitorID; });
++    const char* label = selected == monitors.end() ? "Select a connected monitor" : selected->Label.c_str();
++    ImGui::SetNextItemWidth(-1);
++    if (ImGui::BeginCombo("##XSMonitor", label))
++    {
++        for (const auto& monitor : monitors)
++            if (ImGui::Selectable(monitor.Label.c_str(), monitor.ID == m_XSMonitorID)) m_XSMonitorID = monitor.ID;
++        ImGui::EndCombo();
++    }
++}
++
++std::string UIManager::ApplyXSLayout(const std::string& layout, int backend)
++{
++    // Refresh at click time: Virtual Desktop can change a monitor's mode during a session.
++    const auto monitors = XSGetMonitors();
++    const auto selected = std::find_if(monitors.begin(), monitors.end(), [&](const XSMonitor& m) { return m.ID == m_XSMonitorID; });
++    if (selected == monitors.end()) return "Selected monitor disconnected. Select a connected monitor.";
++    const int width = selected->Bounds.right - selected->Bounds.left;
++    const int height = selected->Bounds.bottom - selected->Bounds.top;
++    const auto cuts = XSCutPoints(width,layout);
++    if (cuts.empty()) return "Unknown layout or invalid monitor width.";
++    if (width < 4 || height < 1) return "Monitor has no usable desktop bounds.";
++    const bool append = layout.compare(0,4,"Add ") == 0;
++    const bool combined_ddp = backend == 0 && !ConfigManager::GetValue(configid_bool_performance_single_desktop_mirroring);
++    const POINT crop_origin = XSCropOrigin(selected->Bounds,selected->AdapterBounds,combined_ddp);
++    const int crop_x = crop_origin.x, crop_y = crop_origin.y;
++    const std::string name = "XS Auto D" + std::to_string(m_XSMonitorID+1) + " " + std::to_string(width) + "x" + std::to_string(height) + " " + layout + " B" + std::to_string(backend);
++    const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + name + ".ini").c_str());
++    Ini config(path,true);
++    // Use a comfortable physical height at every source resolution; preserve crop aspect ratios.
++    const float physical_height = 0.70f;
++    const float total_width = physical_height * (cuts.back()-cuts.front()) / height;
++    float left = -(total_width + 0.03f*(cuts.size()-2)) / 2;
++    Matrix4 facing;
++    if (IsOpenVRLoaded()) facing = vr::IVRSystemEx::ComputeHMDFacingTransform(1.5f);
++    else { facing.identity(); facing.translate(0,1.4f,-1.5f); }
++    for (size_t i=0; i+1<cuts.size(); ++i)
++    {
++        const std::string section = "Overlay" + std::to_string(i);
++        const char* key = section.c_str();
++        const float panel_width = physical_height * (cuts[i+1]-cuts[i]) / height;
++        config.WriteString(key,"Name", ("XS " + layout + " " + std::to_string(i+1)).c_str());
++        config.WriteBool(key,"NameIsCustom",true); config.WriteBool(key,"Enabled",true);
++        config.WriteInt(key,"CaptureSource",backend); config.WriteInt(key,"DesktopID",m_XSMonitorID); config.WriteInt(key,"WinRTDesktopID",m_XSMonitorID);
++        config.WriteInt(key,"Width",std::max(1,(int)(panel_width*100))); config.WriteInt(key,"Curvature",0);
++        config.WriteInt(key,"Opacity",100); config.WriteInt(key,"DisplayMode",0); config.WriteString(key,"Origin","Room");
++        config.WriteBool(key,"TransformLocked",false); config.WriteBool(key,"CroppingEnabled",true);
++        config.WriteInt(key,"CroppingX",crop_x+cuts[i]); config.WriteInt(key,"CroppingY",crop_y);
++        config.WriteInt(key,"CroppingWidth",cuts[i+1]-cuts[i]); config.WriteInt(key,"CroppingHeight",height);
++        config.WriteBool(key,"InputEnabled",true); config.WriteBool(key,"InputDPlusLPEnabled",true);
++        config.WriteBool(key,"ShowFloatingUI",true); config.WriteBool(key,"ShowActionBar",false); config.WriteBool(key,"ShowDesktopButtons",false);
++        Matrix4 pose = facing; pose.translate_relative(left + panel_width/2,0,0);
++        config.WriteString(key,"Transform",pose.toString().c_str()); left += panel_width+0.03f;
++    }
++    if (!config.Save()) return "Could not write the monitor layout. Existing panels were kept.";
++    return LoadXSProfile(name,append);
++}
++
++void UIManager::SaveXSPreferences()
++{
++    Ini preferences(WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath()+"xs-ui.ini").c_str()));
++    preferences.WriteInt("Wrist","WidthCM",(int)(m_XSWristWidth*100+0.5f));
++    preferences.WriteBool("Wrist","RightHand",m_XSWristRightHand);
++    preferences.WriteBool("Wrist","Enabled",m_XSWristEnabled);
++    if (!preferences.Save()) LOG_F(WARNING,"Could not save XS wrist preferences");
++}
++
++void UIManager::CloseXSPanel(unsigned int id)
++{
++    if (id >= OverlayManager::Get().GetOverlayCount()) return;
++    m_XSClosePanelHandle = OverlayManager::Get().GetConfigData(id).ConfigHandle[configid_handle_overlay_state_overlay_handle];
++}
++
++void UIManager::ProcessXSPanelClose()
++{
++    if (m_XSClosePanelHandle == vr::k_ulOverlayHandleInvalid) return;
++    const auto handle = m_XSClosePanelHandle; m_XSClosePanelHandle = vr::k_ulOverlayHandleInvalid;
++    for (unsigned int id=0; id<OverlayManager::Get().GetOverlayCount(); ++id)
++    {
++        if (OverlayManager::Get().GetConfigData(id).ConfigHandle[configid_handle_overlay_state_overlay_handle] != handle) continue;
++        m_FloatingUI.ResetTarget();
++        auto& properties = m_WindowOverlayProperties;
++        if (properties.GetActiveOverlayID() == id) { properties.SetActiveOverlayID(k_ulOverlayID_None,true); properties.HideAll(); }
++        else if (properties.GetActiveOverlayID() != k_ulOverlayID_None && properties.GetActiveOverlayID() > id)
++            properties.SetActiveOverlayID(properties.GetActiveOverlayID()-1,true);
++        OverlayManager::Get().RemoveOverlay(id);
++        IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action,ipcact_overlay_remove,id);
++        RepeatFrame(); break;
++    }
++}
 diff --git a/src/DesktopPlusUI/UIManager.h b/src/DesktopPlusUI/UIManager.h
-index 6a62df5..15634c1 100644
+index 6a62df5..469d911 100644
 --- a/src/DesktopPlusUI/UIManager.h
 +++ b/src/DesktopPlusUI/UIManager.h
 @@ -45,6 +45,7 @@ enum UITexspaceID
@@ -738,17 +1060,21 @@ index 6a62df5..15634c1 100644
      ui_texspace_MAX
  };
  
-@@ -140,6 +141,9 @@ class UIManager
+@@ -140,6 +141,13 @@ class UIManager
          vr::VROverlayHandle_t m_OvrlHandleOverlayProperties;
          vr::VROverlayHandle_t m_OvrlHandleKeyboard;
          vr::VROverlayHandle_t m_OvrlHandleAuxUI;
 +        vr::VROverlayHandle_t m_OvrlHandleXSWrist = vr::k_ulOverlayHandleInvalid;
 +        bool m_XSWristEnabled = true;
 +        bool m_XSWristRightHand = false;
++        float m_XSWristWidth = 0.20f;
++        int m_XSMonitorID = 0;
++        bool m_XSUIGripDrag = false;
++        vr::VROverlayHandle_t m_XSClosePanelHandle = vr::k_ulOverlayHandleInvalid;
          vr::VROverlayHandle_t m_OvrlHandleDPlusDashboard;   //Cached to minimize FindOverlay() calls
          vr::VROverlayHandle_t m_OvrlHandleSystemUI;         //Cached to minimize FindOverlay() calls
          bool m_OvrlVisible;
-@@ -206,7 +210,7 @@ class UIManager
+@@ -206,7 +214,7 @@ class UIManager
          vr::VROverlayHandle_t GetOverlayHandleAuxUI()              const;
          vr::VROverlayHandle_t GetOverlayHandleDPlusDashboard()     const;
          vr::VROverlayHandle_t GetOverlayHandleSystemUI()           const;
@@ -757,7 +1083,7 @@ index 6a62df5..15634c1 100644
          bool IsDummyOverlayTransformUnstable() const;
          void SendUIIntersectionMaskToDashboardApp(std::vector<vr::VROverlayIntersectionMaskPrimitive_t>& primitives) const;
  
-@@ -215,6 +219,12 @@ class UIManager
+@@ -215,6 +223,18 @@ class UIManager
  
          //This can be called by functions knowingly making changes which will cause visible layout re-alignment due to ImGui's nature of intermediate UI
          //This will cause 2 extra frames to be calculated but thrown away instantly to be more pleasing to the eye. In rare cases more are needed and can be specified instead
@@ -765,105 +1091,358 @@ index 6a62df5..15634c1 100644
 +        bool& XSWristEnabled() { return m_XSWristEnabled; }
 +        void UpdateXSWristTracking();
 +        void UpdateXSWrist();
++        void DrawXSMonitorSelector();
++        std::string ApplyXSLayout(const std::string& layout, int backend);
++        void CloseXSPanel(unsigned int id);
++        void ProcessXSPanelClose();
++        float& XSWristWidth() { return m_XSWristWidth; }
++        void SaveXSPreferences();
 +        std::string LoadXSProfile(const std::string& profile, bool append);
 +
          void RepeatFrame(int extra_frame_count = 2); 
          bool GetRepeatFrame() const;
          void DecreaseRepeatFrameCount();
+diff --git a/src/DesktopPlusUI/WindowFloatingUIBar.cpp b/src/DesktopPlusUI/WindowFloatingUIBar.cpp
+index d9adf63..985a5ef 100644
+--- a/src/DesktopPlusUI/WindowFloatingUIBar.cpp
++++ b/src/DesktopPlusUI/WindowFloatingUIBar.cpp
+@@ -60,254 +60,50 @@ void WindowFloatingUIMainBar::DisplayTooltipIfHovered(const char* text)
+ 
+ void WindowFloatingUIMainBar::Update(float actionbar_height, unsigned int overlay_id)
+ {
+-    OverlayConfigData& overlay_data = OverlayManager::Get().GetConfigData(overlay_id);
+-
+-    ImGuiIO& io = ImGui::GetIO();
+-
+-    ImVec2 b_size, b_uv_min, b_uv_max;
+-    TextureManager::Get().GetTextureInfo(tmtex_icon_small_close, b_size, b_uv_min, b_uv_max);
+-    const ImGuiStyle& style = ImGui::GetStyle();
+-
+-    //Put window near the bottom of the overlay with space for the tooltips + padding (touching action-bar when visible)
+-    const float offset_base = ImGui::GetFontSize() + style.FramePadding.y + (style.WindowPadding.y * 2.0f) + 3.0f;
+-    const float offset_y = smoothstep(m_AnimationProgress, offset_base + actionbar_height /* Action-Bar not visible */, offset_base /* Action-Bar visible */);
+-
+-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x / 2.0f, io.DisplaySize.y - offset_y), 0, ImVec2(0.5f, 1.0f));
+-    ImGui::Begin("WindowFloatingUIMainBar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing |
+-                                                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_HorizontalScrollbar);
+-
+-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {style.ItemSpacing.y, style.ItemSpacing.y});
+-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+-
+-    //Show Action-Bar Button (this is a per-overlay state)
+-    bool& is_actionbar_enabled = overlay_data.ConfigBool[configid_bool_overlay_actionbar_enabled];
+-    bool actionbar_was_enabled = is_actionbar_enabled;
+-
+-    if (actionbar_was_enabled)
+-        ImGui::PushStyleColor(ImGuiCol_Button, Style_ImGuiCol_ButtonPassiveToggled);
+-
+-    TextureManager::Get().GetTextureInfo(tmtex_icon_small_actionbar, b_size, b_uv_min, b_uv_max);
+-    if (ImGui::ImageButton("ToggleActionBar", io.Fonts->TexID, b_size, b_uv_min, b_uv_max))
+-    {
+-        is_actionbar_enabled = !is_actionbar_enabled;
+-        //This is an UI state so no need to sync
+-    }
+-
+-    if (actionbar_was_enabled)
+-        ImGui::PopStyleColor();
+-
+-    DisplayTooltipIfHovered(TranslationManager::GetString( (actionbar_was_enabled) ? tstr_FloatingUIActionBarHideTip : tstr_FloatingUIActionBarShowTip ));
+-    //
+-
+-    ImGui::SameLine();
+-
+-    //Extra buttons
+-    if (overlay_data.ConfigBool[configid_bool_overlay_floatingui_extras_enabled])
+-    {
+-        //Add current window as overlay (only show if desktop duplication or non-window WinRT capture)
+-        if (  (overlay_data.ConfigInt[configid_int_overlay_capture_source] == ovrl_capsource_desktop_duplication) ||
+-             ((overlay_data.ConfigInt[configid_int_overlay_capture_source] == ovrl_capsource_winrt_capture) && (overlay_data.ConfigHandle[configid_handle_overlay_state_winrt_hwnd] == 0)) )
+-        {
+-            //If marked to need update, refresh actual state
+-            if (m_IsCurrentWindowCapturable == -1)
+-            {
+-                m_IsCurrentWindowCapturable = (WindowManager::Get().WindowListFindWindow(::GetForegroundWindow()) != nullptr);
+-            }
+-
+-            if (m_IsCurrentWindowCapturable != 1)
+-                ImGui::PushItemDisabled();
+-
+-            TextureManager::Get().GetTextureInfo(tmtex_icon_small_add_window, b_size, b_uv_min, b_uv_max);
+-            ImGui::ImageButton("AddWindow", io.Fonts->TexID, b_size, b_uv_min, b_uv_max); //This one's activated on mouse down
+-
+-            if (ImGui::IsItemActivated())
+-            {
+-                vr::TrackedDeviceIndex_t device_index = ConfigManager::Get().GetPrimaryLaserPointerDevice();
+-
+-                //If no dashboard device, try finding one
+-                if (device_index == vr::k_unTrackedDeviceIndexInvalid)
+-                {
+-                    device_index = vr::IVROverlayEx::FindPointerDeviceForOverlay(UIManager::Get()->GetOverlayHandleFloatingUI());
+-                }
+-
+-                //Try to get the pointer distance
+-                float source_distance = 1.0f;
+-                vr::VROverlayIntersectionResults_t results;
+-
+-                if (vr::IVROverlayEx::ComputeOverlayIntersectionForDevice(UIManager::Get()->GetOverlayHandleFloatingUI(), device_index, vr::TrackingUniverseStanding, &results))
+-                {
+-                    source_distance = results.fDistance;
+-                }
+-
+-                //Set pointer hint in case dashboard app needs it
+-                ConfigManager::SetValue(configid_int_state_laser_pointer_device_hint, (int)device_index);
+-                IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_laser_pointer_device_hint, (int)device_index);
+-
+-                //Add overlay
+-                HWND current_window = ::GetForegroundWindow();
+-                OverlayManager::Get().AddOverlay(ovrl_capsource_winrt_capture, -2, current_window);
+-
+-                //Send to dashboard app
+-                IPCManager::Get().PostConfigMessageToDashboardApp(configid_handle_state_arg_hwnd, (LPARAM)current_window);
+-                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_new_drag, MAKELPARAM(-2, (source_distance * 100.0f)));
+-            }
+-
+-            if (m_IsCurrentWindowCapturable != 1)
+-                ImGui::PopItemDisabled();
+-
+-            DisplayTooltipIfHovered(TranslationManager::GetString(tstr_FloatingUIWindowAddTip));
+-
+-            ImGui::SameLine();
+-        }
+-        //
+-
+-        if (overlay_data.ConfigInt[configid_int_overlay_capture_source] == ovrl_capsource_ui) //Performance Monitor reset button (only show if UI overlay)
+-        {
+-            UpdatePerformanceMonitorButtons();
+-        }
+-        else if (overlay_data.ConfigInt[configid_int_overlay_capture_source] == ovrl_capsource_browser) //Browser navigation/reload buttons (only show if browser overlay)
+-        {
+-            UpdateBrowserButtons(overlay_id);
+-        }
+-    }
+-    //
+-
+-    //Drag-Mode Toggle Button (this is a global state)
+-    bool& is_dragmode_enabled = ConfigManager::GetRef(configid_bool_state_overlay_dragmode);
+-    bool dragmode_was_enabled = is_dragmode_enabled;
+-    bool& is_overlay_transform_locked = overlay_data.ConfigBool[configid_bool_overlay_transform_locked];
+-
+-    if (dragmode_was_enabled)
+-        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+-
+-    TextureManager::Get().GetTextureInfo((is_overlay_transform_locked) ? tmtex_icon_small_move_locked : tmtex_icon_small_move, b_size, b_uv_min, b_uv_max);
+-    if (ImGui::ImageButton("DragMode", io.Fonts->TexID, b_size, b_uv_min, b_uv_max))
+-    {
+-        if (io.MouseDownDurationPrev[ImGuiMouseButton_Left] < 1.5f) //Don't do normal button behavior after lock toggle was triggered
+-        {
+-            is_dragmode_enabled = !is_dragmode_enabled;
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragselectmode_show_hidden, false);
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, is_dragmode_enabled);
+-
+-            //Update temporary standing position if dragmode has been activated and dashboard tab isn't active
+-            if ((is_dragmode_enabled) && (!UIManager::Get()->IsOverlayBarOverlayVisible()))
+-            {
+-                UIManager::Get()->GetOverlayDragger().UpdateTempStandingPosition();
+-            }
+-        }
+-    }
+-
+-    //Toggle transform lock when holding for 1.5 seconds
+-    bool show_hold_message_lock = false;
+-
+-    if (ImGui::IsItemActive())
+-    {
+-        if (io.MouseDownDuration[ImGuiMouseButton_Left] > 1.5f)
+-        {
+-            is_overlay_transform_locked = !is_overlay_transform_locked;
+-
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, (int)overlay_id);
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_overlay_transform_locked, is_overlay_transform_locked);
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, -1);
+-
+-            io.MouseDown[ImGuiMouseButton_Left] = false;    //Release mouse button so actual button won't get toggled
+-        }
+-        else if (io.MouseDownDuration[ImGuiMouseButton_Left] > 0.5f)
+-        {
+-            show_hold_message_lock = true;
+-        }
+-    }
+-
+-    if (dragmode_was_enabled)
+-        ImGui::PopStyleColor();
+-
+-    if (show_hold_message_lock)
+-    {
+-        DisplayTooltipIfHovered(TranslationManager::GetString((is_overlay_transform_locked) ? tstr_FloatingUIDragModeHoldUnlockTip: tstr_FloatingUIDragModeHoldLockTip));
+-    }
+-    else
+-    {
+-        DisplayTooltipIfHovered(TranslationManager::GetString((dragmode_was_enabled) ? tstr_FloatingUIDragModeDisableTip : tstr_FloatingUIDragModeEnableTip));
+-    }
+-    //
+-
+-    ImGui::SameLine();
+-
+-    //Close/Disable Button
+-    TextureManager::Get().GetTextureInfo(tmtex_icon_small_close, b_size, b_uv_min, b_uv_max);
+-    if (ImGui::ImageButton("Close", io.Fonts->TexID, b_size, b_uv_min, b_uv_max))
+-    {
+-        if (io.MouseDownDurationPrev[ImGuiMouseButton_Left] < 2.5f) //Don't do normal button behavior after lock toggle was triggered
+-        {
+-            overlay_data.ConfigBool[configid_bool_overlay_enabled] = false;
+-
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, (int)overlay_id);
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_overlay_enabled, false);
+-            IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override, -1);
+-        }
+-    }
+-
+-    //Toggle transform lock when holding for 2.5 seconds
+-    bool show_hold_message_remove = false;
+-
+-    if (ImGui::IsItemActive())
+-    {
+-        if (io.MouseDownDuration[ImGuiMouseButton_Left] > 2.5f) //Longer delay compared to other holds because this is pretty destructive (but still less than rare transform resets)
+-        {
+-            OverlayManager::Get().RemoveOverlay(overlay_id);
+-            IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_remove, overlay_id);
+-
+-            //Hide properties window if it's open for this overlay
+-            WindowOverlayProperties& properties_window = UIManager::Get()->GetOverlayPropertiesWindow();
+-
+-            if (properties_window.GetActiveOverlayID() == overlay_id)
+-            {
+-                properties_window.SetActiveOverlayID(k_ulOverlayID_None, true);
+-                properties_window.HideAll();
+-            }
+-            else if (properties_window.GetActiveOverlayID() > overlay_id) //Adjust properties window active overlay ID if it's open for an overlay that had its ID shifted
+-            {
+-                properties_window.SetActiveOverlayID(properties_window.GetActiveOverlayID() - 1, true);
+-            }
+-
+-            io.MouseDown[ImGuiMouseButton_Left] = false;    //Release mouse button so actual button won't get toggled
+-        }
+-        else if (io.MouseDownDuration[ImGuiMouseButton_Left] > 0.5f)
+-        {
+-            show_hold_message_remove = true;
+-        }
+-    }
+-
+-    if (show_hold_message_remove)
+-    {
+-        DisplayTooltipIfHovered(TranslationManager::GetString(tstr_FloatingUIHideOverlayHoldTip));
+-    }
+-    else
+-    {
+-        DisplayTooltipIfHovered(TranslationManager::GetString(tstr_FloatingUIHideOverlayTip));
+-    }
+-    //
+-
+-    ImGui::PopStyleColor(); //ImGuiCol_Button
+-    ImGui::PopStyleVar();   //ImGuiStyleVar_ItemSpacing
+-    ImGui::PopStyleVar();   //ImGuiStyleVar_FrameRounding
+-
+-    m_Pos  = ImGui::GetWindowPos();
+-    m_Size = ImGui::GetWindowSize();
+-
++    auto& data = OverlayManager::Get().GetConfigData(overlay_id);
++    const auto& rect = UITextureSpaces::Get().GetRect(ui_texspace_floating_ui);
++    ImGui::SetNextWindowPos(ImVec2((float)rect.GetCenter().x, (float)rect.Min.y+8), 0, ImVec2(0.5f,0));
++    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32,39,46,255));
++    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(57,67,76,255));
++    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21,28,34,255));
++    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(52,65,76,255));
++    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(233,238,242,255));
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
++    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
++    ImGui::Begin("WindowFloatingUIMainBar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
++        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
++    ImGui::TextUnformatted(data.ConfigNameStr.substr(0,32).c_str());
++    auto change_width = [&](float multiplier) {
++        float& width = data.ConfigFloat[configid_float_overlay_width];
++        width = clamp(width*multiplier, 0.15f, 8.0f);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,(int)overlay_id);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_float_overlay_width,width);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,-1);
++    };
++    if (ImGui::Button("Size -5%")) change_width(0.95f);
++    ImGui::SameLine(); if (ImGui::Button("Size +5%")) change_width(1.05f);
++    ImGui::SameLine(); if (ImGui::Button("Properties"))
++    {
++        auto& properties = UIManager::Get()->GetOverlayPropertiesWindow();
++        properties.SetActiveOverlayID(overlay_id,true);
++        auto& state = properties.GetOverlayState(properties.GetOverlayStateCurrentID());
++        state.TransformAbs = vr::IVRSystemEx::ComputeHMDFacingTransform(1.15f);
++        state.IsPinned = true; state.Size = 0.70f;
++        properties.Show(); properties.ApplyCurrentOverlayState();
++    }
++    ImGui::SameLine(); if (ImGui::Button("Hide"))
++    {
++        data.ConfigBool[configid_bool_overlay_enabled] = false;
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,(int)overlay_id);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_overlay_enabled,false);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,-1);
++    }
++    ImGui::SameLine(); if (ImGui::Button("Close")) UIManager::Get()->CloseXSPanel(overlay_id);
++    DisplayTooltipIfHovered("Remove this VR panel. The desktop application stays open.");
++    m_Pos = ImGui::GetWindowPos(); m_Size = ImGui::GetWindowSize();
+     ImGui::End();
+-
+-    //Sliding animation when action-bar state changes
+-    if (UIManager::Get()->GetFloatingUI().GetAlpha() != 0.0f)
+-    {
+-        m_AnimationProgress += (is_actionbar_enabled) ? ImGui::GetIO().DeltaTime * 3.0f : ImGui::GetIO().DeltaTime * -3.0f;
+-        m_AnimationProgress = clamp(m_AnimationProgress, 0.0f, 1.0f);
+-    }
+-    else //Skip animation when Floating UI is just fading in
+-    {
+-        m_AnimationProgress = (is_actionbar_enabled) ? 1.0f : 0.0f;
+-    }
++    ImGui::PopStyleVar(2); ImGui::PopStyleColor(5);
++    m_AnimationProgress = 0.0f;
+ }
+ 
+ void WindowFloatingUIMainBar::UpdatePerformanceMonitorButtons()
 diff --git a/src/DesktopPlusUI/WindowSettings.cpp b/src/DesktopPlusUI/WindowSettings.cpp
-index 8326986..c06dc8e 100644
+index 8326986..aa5055b 100644
 --- a/src/DesktopPlusUI/WindowSettings.cpp
 +++ b/src/DesktopPlusUI/WindowSettings.cpp
-@@ -2855,11 +2855,100 @@ void WindowSettings::UpdatePageProfiles()
+@@ -1,4 +1,5 @@
+ #include "WindowSettings.h"
++#include "OpenVRExt.h"
+ 
+ #include <sstream>
+ #include <unordered_set>
+@@ -2855,11 +2856,39 @@ void WindowSettings::UpdatePageProfiles()
  
      ImGui::Indent();
  
-+    // XS adds presets to the native profile workflow; capture and interaction stay upstream.
 +    const float xs_begin_y = ImGui::GetCursorPosY();
 +    static int xs_capture_method = 0;
 +    static std::string xs_error;
-+    ImGui::TextUnformatted("XS Ultrawide - Desktop 1, 5120x1440");
-+    ImGui::Checkbox("Show XS wrist shelf", &UIManager::Get()->XSWristEnabled());
++    ImGui::TextUnformatted("XS monitor panels");
++    if (ImGui::Checkbox("Show XS wrist shelf", &UIManager::Get()->XSWristEnabled())) UIManager::Get()->SaveXSPreferences();
++    ImGui::SetNextItemWidth(-1);
++    ImGui::SliderFloat("##XSSettingsWristSize", &UIManager::Get()->XSWristWidth(), 0.12f, 0.32f, "Wrist width %.2f m");
++    if (ImGui::IsItemDeactivatedAfterEdit()) UIManager::Get()->SaveXSPreferences();
++    UIManager::Get()->DrawXSMonitorSelector();
 +    ImGui::SetNextItemWidth(-1.0f);
 +    ImGui::Combo("##XSCaptureMethod", &xs_capture_method, "Graphics Capture\0Desktop Duplication\0");
-+    const char* xs_labels[] = {"Dual##XS", "Thirds##XS", "Wide center##XS"};
-+    const char* xs_layouts[] = {"Dual", "Thirds", "Wide Center"};
-+    for (int xs_layout = 0; xs_layout < 3; ++xs_layout)
++    const char* xs_labels[] = {"Dual##XS", "Thirds##XS", "Wide centre##XS", "Add full##XS", "Add left##XS", "Add right##XS"};
++    const char* xs_layouts[] = {"Dual", "Thirds", "Wide Center", "Add Full", "Add Left Half", "Add Right Half"};
++    for (int i = 0; i < 6; ++i)
 +    {
-+        if (xs_layout != 0) ImGui::SameLine();
-+        if (ImGui::Button(xs_labels[xs_layout]))
++        if (i % 3 != 0) ImGui::SameLine();
++        if (ImGui::Button(xs_labels[i]))
 +        {
-+            const std::string profile = std::string("XS 5120 ") + xs_layouts[xs_layout] + " - " +
-+                ((xs_capture_method == 0) ? "Graphics Capture" : "Desktop Duplication");
-+            const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + profile + ".ini").c_str());
-+            xs_error.clear();
-+            if (!FileExists(path.c_str()))
-+            {
-+                xs_error = "XS preset file missing; extract the complete XS package.";
-+            }
-+            else if ((OverlayManager::Get().GetOverlayCount() != 0) &&
-+                     !ConfigManager::Get().SaveMultiOverlayProfileToFile("XS Previous Layout.ini"))
-+            {
-+                xs_error = "Could not save XS Previous Layout; your layout was not replaced.";
-+            }
-+            else if (!ConfigManager::Get().LoadMultiOverlayProfileFromFile(profile + ".ini"))
-+            {
-+                xs_error = "Could not load the XS preset.";
-+            }
-+            else
-+            {
-+                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
-+                IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
-+                m_ProfileSelectionName = profile;
-+                IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, UIManager::Get()->GetWindowHandle());
-+                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, ipcactv_ovrl_profile_multi);
-+                UIManager::Get()->OnProfileLoaded();
-+                m_ProfileList = ConfigManager::Get().GetOverlayProfileList();
-+                const auto selected = std::find(m_ProfileList.begin(), m_ProfileList.end(), profile);
-+                list_id = (selected == m_ProfileList.end()) ? -1 : int(std::distance(m_ProfileList.begin(), selected));
-+                scroll_to_selection = true;
-+                delete_confirm_state = false;
-+                has_loading_failed = false;
-+                has_deletion_failed = false;
-+            }
++            xs_error = UIManager::Get()->ApplyXSLayout(xs_layouts[i], xs_capture_method == 0 ? 1 : 0);
++            m_ProfileList = ConfigManager::Get().GetOverlayProfileList();
++            list_id = -1;
 +        }
 +    }
-+    ImGui::TextWrapped("Replaces the overlay set. A backup is saved as XS Previous Layout.");
-+
-+    ImGui::TextUnformatted("Add a panel (keeps your current panels)");
-+    const char* xs_add_labels[] = {"Full screen##XSAdd", "Left half##XSAdd", "Right half##XSAdd"};
-+    const char* xs_add_names[] = {"Add Full", "Add Left Half", "Add Right Half"};
-+    for (int i = 0; i < 3; ++i)
-+    {
-+        if (i != 0) ImGui::SameLine();
-+        if (ImGui::Button(xs_add_labels[i]))
-+        {
-+            const std::string profile = std::string("XS 5120 ") + xs_add_names[i] + " - " +
-+                ((xs_capture_method == 0) ? "Graphics Capture" : "Desktop Duplication");
-+            const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + profile + ".ini").c_str());
-+            xs_error.clear();
-+            std::vector<char> included(1, true);
-+            if (!FileExists(path.c_str()) || !ConfigManager::Get().LoadMultiOverlayProfileFromFile(profile + ".ini", false, &included))
-+                xs_error = "Could not add the XS panel; extract the complete XS package.";
-+            else
-+            {
-+                ConfigManager::SetValue(configid_bool_state_overlay_dragmode, false);
-+                IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_state_overlay_dragmode, false);
-+                IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, UIManager::Get()->GetWindowHandle());
-+                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, 0));
-+                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, MAKELPARAM(ipcactv_ovrl_profile_multi_add, -1));
-+                UIManager::Get()->RepeatFrame();
-+            }
-+        }
-+    }
-+    ImGui::TextWrapped("Point and hold grip to move; release to place. Trigger clicks without locking. Turn off Move mode for normal interaction.");
-+
-+    if (!xs_error.empty())
-+    {
-+        ImGui::PushStyleColor(ImGuiCol_Text, Style_ImGuiCol_TextError);
-+        ImGui::TextWrapped("%s", xs_error.c_str());
-+        ImGui::PopStyleColor();
-+    }
++    ImGui::TextWrapped("Layouts split only the selected monitor at its current resolution. Add keeps existing panels. Layout switches back up XS Previous Layout.");
++    if (!xs_error.empty()) ImGui::TextWrapped("%s", xs_error.c_str());
 +    ImGui::Separator();
 +    const float xs_controls_height = ImGui::GetCursorPosY() - xs_begin_y;
 +
@@ -876,6 +1455,39 @@ index 8326986..c06dc8e 100644
  
      //List profiles
      int index = 0;
+@@ -6431,3 +6460,20 @@ void WindowSettings::RefreshAppList()
+         }
+     }
+ }
++
++void WindowSettings::Show(bool skip_fade)
++{
++    if (!IsVisible() && UIManager::Get()->IsOpenVRLoaded() && !UIManager::Get()->IsInDesktopMode())
++    {
++        const Matrix4 facing = vr::IVRSystemEx::ComputeHMDFacingTransform(1.15f);
++        for (const auto id : {floating_window_ovrl_state_room, floating_window_ovrl_state_dashboard_tab})
++        {
++            auto& state = GetOverlayState(id);
++            state.TransformAbs = facing;
++            state.IsPinned = true;
++            state.Size = 0.70f;
++        }
++    }
++    FloatingWindow::Show(skip_fade);
++    ApplyCurrentOverlayState();
++}
+diff --git a/src/DesktopPlusUI/WindowSettings.h b/src/DesktopPlusUI/WindowSettings.h
+index df8efe7..ad3d632 100644
+--- a/src/DesktopPlusUI/WindowSettings.h
++++ b/src/DesktopPlusUI/WindowSettings.h
+@@ -127,6 +127,7 @@ class WindowSettings : public FloatingWindow, public FloatingWindowDesktopModeIn
+     public:
+         WindowSettings();
+         virtual void Hide(bool skip_fade = false);
++        virtual void Show(bool skip_fade = false);
+         virtual void ResetTransform(FloatingWindowOverlayStateID state_id);
+         virtual vr::VROverlayHandle_t GetOverlayHandle() const;
+ 
 diff --git a/src/Shared/InterprocessMessaging.h b/src/Shared/InterprocessMessaging.h
 index 083852b..2ac4e7f 100644
 --- a/src/Shared/InterprocessMessaging.h
@@ -890,7 +1502,7 @@ index 083852b..2ac4e7f 100644
  const char* const g_AppKeyTheaterScreen     = "elvissteinjr.DesktopPlusTheaterScreen";  //We need an app with "starts_theater_mode", but we can't add that to the app manifest written by Steam
  
 diff --git a/src/Shared/Logging.h b/src/Shared/Logging.h
-index db5fc7e..3d3d4c9 100644
+index db5fc7e..6376c2a 100644
 --- a/src/Shared/Logging.h
 +++ b/src/Shared/Logging.h
 @@ -7,7 +7,7 @@
@@ -898,7 +1510,7 @@ index db5fc7e..3d3d4c9 100644
  //DPLUS_SHA is set externally for nightly builds to use the commit hash in version string
  //DPLUS_SHA is also always defined but usually empty... so we detect this with some constexpr trickery instead of messing with the build system even more
 -constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ 3.6" : "Desktop+ " DPLUS_SHA;
-+constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.2.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
++constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.3.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
  
  //Version written to config file
  //Only really increased when backward incompatible changes were made (we fall back to default values when things are missing usually)
