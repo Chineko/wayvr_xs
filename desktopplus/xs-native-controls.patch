@@ -271,10 +271,102 @@ index d275c83..abf09c1 100644
          "launch_type": "binary",
          "binary_path_windows": "DesktopPlus.exe",
 diff --git a/src/DesktopPlus/LaserPointer.cpp b/src/DesktopPlus/LaserPointer.cpp
-index c8f1e49..ed5f0e6 100644
+index c8f1e49..1a267fb 100644
 --- a/src/DesktopPlus/LaserPointer.cpp
 +++ b/src/DesktopPlus/LaserPointer.cpp
-@@ -922,7 +922,8 @@ void LaserPointer::RefreshCachedOverlayHandles()
+@@ -524,6 +524,12 @@ void LaserPointer::UpdateIntersection(vr::TrackedDeviceIndex_t device_index)
+         lp_device.LaserLength = LASER_POINTER_DEFAULT_LENGTH;
+     }
+ 
++    // Poll release even when this hand lost hover or another hand became primary.
++    // Otherwise a panel can remain attached after switching hands during a grab.
++    const auto grip_action = OutputManager::Get()->GetVRInput().GetLaserPointerDragState(lp_device.InputValueHandle);
++    const auto grip_event = lp_device.Grip.Update(grip_action.bActive,grip_action.bState,nearest_target_overlay);
++    if (grip_event.Changed) SendDirectDragCommand(grip_event.Target,grip_event.Down,device_index);
++
+     //Input events
+     if (nearest_target_overlay != vr::k_ulOverlayHandleInvalid)
+     {
+@@ -626,23 +632,7 @@ void LaserPointer::UpdateIntersection(vr::TrackedDeviceIndex_t device_index)
+             default: break;
+         }
+ 
+-        //Direct Drag
+-        {
+-            vr::InputDigitalActionData_t input_data = vr_input.GetLaserPointerDragState(lp_device.InputValueHandle);
+-            if (input_data.bActive)
+-            {
+-                if (input_data.bChanged)
+-                {
+-                    SendDirectDragCommand(nearest_target_overlay, input_data.bState);
+-                    lp_device.IsDragDown = input_data.bState;
+-                }
+-
+-                if (input_data.bState)
+-                {
+-                    lp_device.InputDownCount++;
+-                }
+-            }
+-        }
++        if (lp_device.Grip.IsDown) ++lp_device.InputDownCount;
+     }
+     else
+     {
+@@ -671,8 +661,9 @@ void LaserPointer::UpdateIntersection(vr::TrackedDeviceIndex_t device_index)
+     vr::VROverlay()->SetOverlayTextureBounds(lp_device.OvrlHandle, &tex_bounds);
+ }
+ 
+-void LaserPointer::SendDirectDragCommand(vr::VROverlayHandle_t overlay_handle_target, bool do_start_drag)
++void LaserPointer::SendDirectDragCommand(vr::VROverlayHandle_t overlay_handle_target, bool do_start_drag, vr::TrackedDeviceIndex_t device_index)
+ {
++    if (overlay_handle_target == vr::k_ulOverlayHandleInvalid) return;
+     unsigned int overlay_id = OverlayManager::Get().FindOverlayID(overlay_handle_target);
+ 
+     if (overlay_id == k_ulOverlayID_None)
+@@ -684,12 +675,16 @@ void LaserPointer::SendDirectDragCommand(vr::VROverlayHandle_t overlay_handle_ta
+         //Tell UI to start a drag on it if it is
+         if (is_ui)
+         {
++            // A held squeeze may start on the first hover frame; publish the target
++            // before the drag command instead of relying on last frame's UI target.
++            if (do_start_drag)
++                IPCManager::Get().PostConfigMessageToUIApp(configid_handle_state_dplus_laser_pointer_target_overlay,pun_cast<LPARAM,vr::VROverlayHandle_t>(overlay_handle_target));
+             IPCManager::Get().PostMessageToUIApp(ipcmsg_action, ipcact_lpointer_ui_drag, (do_start_drag) ? 1 : 0);
+         }
+     }
+     else
+     {
+-        (do_start_drag) ? OutputManager::Get()->OverlayDirectDragStart(overlay_id) : OutputManager::Get()->OverlayDirectDragFinish(overlay_id);
++        (do_start_drag) ? OutputManager::Get()->OverlayDirectDragStart(overlay_id,device_index) : OutputManager::Get()->OverlayDirectDragFinish(overlay_id);
+     }
+ }
+ 
+@@ -847,10 +842,11 @@ void LaserPointer::ClearActiveDevice()
+         LaserPointerDevice& lp_device_prev = m_Devices[previous_active_device];
+ 
+         //Finish active direct drag
+-        if (lp_device_prev.IsDragDown)
++        if (lp_device_prev.Grip.IsDown)
+         {
+-            SendDirectDragCommand(lp_device_prev.OvrlHandleTargetLast, false);
+-            lp_device_prev.IsDragDown = false;
++            SendDirectDragCommand(lp_device_prev.Grip.Target, false);
++            lp_device_prev.Grip.Target = vr::k_ulOverlayHandleInvalid;
++            lp_device_prev.Grip.IsDown = false;
+         }
+ 
+         //Send focus leave event to last entered overlay if there is any
+@@ -883,6 +879,9 @@ void LaserPointer::RemoveDevice(vr::TrackedDeviceIndex_t device_index)
+ 
+     LaserPointerDevice& lp_device = m_Devices[device_index];
+ 
++    const auto release = lp_device.Grip.Update(false,false,vr::k_ulOverlayHandleInvalid);
++    if (release.Changed) SendDirectDragCommand(release.Target,false,device_index);
++
+     if (lp_device.OvrlHandle != vr::k_ulOverlayHandleInvalid)
+     {
+         vr::VROverlay()->DestroyOverlay(lp_device.OvrlHandle);
+@@ -922,7 +921,8 @@ void LaserPointer::RefreshCachedOverlayHandles()
          "elvissteinjr.DesktopPlusUIFloating",
          "elvissteinjr.DesktopPlusUISettings",
          "elvissteinjr.DesktopPlusUIOverlayProperties",
@@ -284,11 +376,115 @@ index c8f1e49..ed5f0e6 100644
      };
  
      for (const char* key : ui_overlay_keys)
+diff --git a/src/DesktopPlus/LaserPointer.h b/src/DesktopPlus/LaserPointer.h
+index b50018a..659de14 100644
+--- a/src/DesktopPlus/LaserPointer.h
++++ b/src/DesktopPlus/LaserPointer.h
+@@ -6,6 +6,37 @@
+ 
+ #include <vector>
+ 
++// Per-controller grip capture, independent of pointer hover and action-edge timing.
++struct XSGripEvent
++{
++    bool Changed = false;
++    bool Down = false;
++    vr::VROverlayHandle_t Target = vr::k_ulOverlayHandleInvalid;
++};
++
++struct XSGripCapture
++{
++    bool IsDown = false;
++    vr::VROverlayHandle_t Target = vr::k_ulOverlayHandleInvalid;
++
++    XSGripEvent Update(bool active, bool pressed, vr::VROverlayHandle_t candidate)
++    {
++        const bool down = active && pressed;
++        if (IsDown && !down)
++        {
++            const auto previous = Target;
++            IsDown = false; Target = vr::k_ulOverlayHandleInvalid;
++            return {true,false,previous};
++        }
++        if (!IsDown && down && candidate != vr::k_ulOverlayHandleInvalid)
++        {
++            IsDown = true; Target = candidate;
++            return {true,true,Target};
++        }
++        return {};
++    }
++};
++
+ struct LaserPointerDevice
+ {
+     vr::VROverlayHandle_t OvrlHandle = vr::k_ulOverlayHandleInvalid;
+@@ -20,7 +51,7 @@ struct LaserPointerDevice
+     OverlayTextureSource OvrlHandleTargetLastTextureSource = ovrl_texsource_none;
+     bool IsActiveForMultiLaserInput = false;
+     int InputDownCount = 0;
+-    bool IsDragDown = false;
++    XSGripCapture Grip;
+ };
+ 
+ //Optional origin that can be passed to SetActiveDevice() in order to keep track what activated the laser pointer (and thus should be responsible for deactivating)
+@@ -63,7 +94,7 @@ class LaserPointer
+         bool DetectDeviceOverlayCustomOffsets(vr::TrackedDeviceIndex_t device_index, const Matrix4& mat_tip_offset);
+         void UpdateIntersection(vr::TrackedDeviceIndex_t device_index);
+ 
+-        void SendDirectDragCommand(vr::VROverlayHandle_t overlay_handle_target, bool do_start_drag);
++        void SendDirectDragCommand(vr::VROverlayHandle_t overlay_handle_target, bool do_start_drag, vr::TrackedDeviceIndex_t device_index = vr::k_unTrackedDeviceIndexInvalid);
+ 
+     public:
+         LaserPointer();
 diff --git a/src/DesktopPlus/OutputManager.cpp b/src/DesktopPlus/OutputManager.cpp
-index 280335d..cc2ea18 100644
+index 280335d..e024e5b 100644
 --- a/src/DesktopPlus/OutputManager.cpp
 +++ b/src/DesktopPlus/OutputManager.cpp
-@@ -2213,6 +2213,8 @@ bool OutputManager::GetOverlayInputActive() const
+@@ -22,6 +22,7 @@ using namespace DirectX;
+ #include "COMWrapper.h"
+ #include "OpenVRExt.h"
+ #include "Logging.h"
++#include "Ini.h"
+ 
+ #include "DesktopPlusWinRT.h"
+ #include "DPBrowserAPIClient.h"
+@@ -652,20 +653,24 @@ std::tuple<vr::EVRInitError, vr::EVROverlayError, bool> OutputManager::InitOverl
+         vr::VRApplications()->AddApplicationManifest((ConfigManager::Get().GetApplicationPath() + "manifest.vrmanifest").c_str());
+     }
+ 
+-    //Set application auto-launch to true if it's the first launch
+-    if (m_IsFirstLaunch)
++    // XS starts manually by default. Migrate the old first-run autostart once,
++    // then respect an explicit opt-in made in SteamVR or Desktop+ Settings.
++    Ini xs_startup(WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath()+"xs-ui.ini").c_str()));
++    if (m_IsFirstLaunch || !xs_startup.ReadBool("Startup","ManualLaunchDefaultApplied",false))
+     {
+-        LOG_F(INFO, "First launch detected. Setting application to auto-launch with SteamVR");
+-        vr::EVRApplicationError app_error = vr::VRApplications()->SetApplicationAutoLaunch(g_AppKeyDashboardApp, true);
+-
+-        if (app_error == vr::VRApplicationError_None)
++        const auto error = vr::VRApplications()->SetApplicationAutoLaunch(g_AppKeyDashboardApp,false);
++        if (error == vr::VRApplicationError_None)
+         {
+-            //Have the UI app display the initial setup notification
+-            IPCManager::Get().PostMessageToUIApp(ipcmsg_action, ipcact_notification_show);
+-
+-            //Show the dashboard overlay as well to make it easier to find when first using the app
+-            vr::VROverlay()->ShowDashboard("elvissteinjr.DesktopPlusDashboard");
++            xs_startup.WriteBool("Startup","ManualLaunchDefaultApplied",true);
++            if (!xs_startup.Save()) LOG_F(WARNING,"Could not save the XS startup migration marker");
++            LOG_F(INFO,"XS manual-launch default applied: SteamVR autostart disabled");
+         }
++        else LOG_F(WARNING,"Could not disable XS SteamVR autostart (error %d)",(int)error);
++    }
++    if (m_IsFirstLaunch)
++    {
++        IPCManager::Get().PostMessageToUIApp(ipcmsg_action,ipcact_notification_show);
++        vr::VROverlay()->ShowDashboard("elvissteinjr.DesktopPlusDashboard");
+     }
+ 
+     const bool vrinput_init_success = m_VRInput.Init();
+@@ -2213,6 +2218,8 @@ bool OutputManager::GetOverlayInputActive() const
  
  DWORD OutputManager::GetMaxRefreshDelay() const
  {
@@ -297,7 +493,61 @@ index 280335d..cc2ea18 100644
      if ( (m_OvrlActiveCount != 0) || (m_OvrlDashboardActive) || (m_LaserPointer.IsActive()) )
      {
          //Actually causes extreme load while not really being necessary (looks nice tho)
-@@ -5339,6 +5341,9 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+@@ -2917,7 +2924,7 @@ void OutputManager::SwitchToWindow(HWND window, bool warp_cursor)
+     }
+ }
+ 
+-void OutputManager::OverlayDirectDragStart(unsigned int overlay_id)
++void OutputManager::OverlayDirectDragStart(unsigned int overlay_id, vr::TrackedDeviceIndex_t device_index)
+ {
+     if (overlay_id == k_ulOverlayID_None)
+         return;
+@@ -2930,21 +2937,25 @@ void OutputManager::OverlayDirectDragStart(unsigned int overlay_id)
+         {
+             if (!data.ConfigBool[configid_bool_overlay_transform_locked])
+             {
+-                m_OverlayDragger.DragStart(overlay_id);
++                m_OverlayDragger.DragStart(overlay_id,device_index);
+ 
+                 if (m_OverlayDragger.IsDragActive())
+                 {
+                     m_OvrlDirectDragActive = true;
+-                    ApplySettingInputMode();
++                    // Avoid resetting all overlay transforms/input modes at grip-down.
++                    ApplySettingMouseInput();
++                    LOG_F(INFO,"XS grip drag started: panel %u, controller %d",overlay_id,m_OverlayDragger.GetDragDeviceID());
+ 
+                     if (m_LaserPointer.IsActive())
+                     {
+                         m_LaserPointer.ForceTargetOverlay(OverlayManager::Get().GetOverlay(overlay_id).GetHandle());
+                     }
+                 }
++                else LOG_F(WARNING,"XS grip drag did not start: panel %u, controller %u (check tracking)",overlay_id,device_index);
+             }
+             else
+             {
++                LOG_F(INFO,"XS grip drag blocked: panel %u is transform-locked",overlay_id);
+                 IPCManager::Get().PostConfigMessageToUIApp(configid_int_state_drag_hint_device, ConfigManager::Get().GetPrimaryLaserPointerDevice());
+                 IPCManager::Get().PostConfigMessageToUIApp(configid_int_state_drag_hint_type, 1);
+             }
+@@ -2966,6 +2977,7 @@ void OutputManager::OverlayDirectDragFinish(unsigned int overlay_id)
+ 
+     if ((m_OverlayDragger.GetDragOverlayID() == overlay_id) && (m_OverlayDragger.IsDragActive()))
+     {
++        LOG_F(INFO,"XS grip drag released: panel %u",overlay_id);
+         OnDragFinish();
+         m_OverlayDragger.DragFinish();
+ 
+@@ -4859,7 +4871,7 @@ bool OutputManager::HandleOpenVREvents()
+                     }
+ 
+                     //Finish drag if there's somehow still one going (and not temp drag mode, where this is expected)
+-                    if ( (m_OverlayDragger.IsDragActive()) && (!ConfigManager::GetValue(configid_bool_state_overlay_dragmode_temp)) )
++                    if ( (m_OverlayDragger.IsDragActive()) && (!m_OvrlDirectDragActive) && (m_OverlayDragger.GetDragOverlayID() == i) && (!ConfigManager::GetValue(configid_bool_state_overlay_dragmode_temp)) )
+                     {
+                         OnDragFinish();
+                         m_OverlayDragger.DragFinish();
+@@ -5339,6 +5351,9 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
          }
          case vr::VREvent_MouseButtonDown:
          {
@@ -307,7 +557,7 @@ index 280335d..cc2ea18 100644
              ActionManager& action_manager = ConfigManager::Get().GetActionManager();
  
              if (ConfigManager::GetValue(configid_bool_state_overlay_selectmode))
-@@ -5505,7 +5510,7 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
+@@ -5505,7 +5520,7 @@ void OutputManager::OnOpenVRMouseEvent(const vr::VREvent_t& vr_event, unsigned i
                      }
                  }
              }
@@ -316,6 +566,31 @@ index 280335d..cc2ea18 100644
              {
                  if ((vr_event.data.mouse.button == vr::VRMouseButton_Left) && (m_OverlayDragger.IsDragActive()))
                  {
+diff --git a/src/DesktopPlus/OutputManager.h b/src/DesktopPlus/OutputManager.h
+index b5855d5..5a883e2 100644
+--- a/src/DesktopPlus/OutputManager.h
++++ b/src/DesktopPlus/OutputManager.h
+@@ -84,7 +84,7 @@ class OutputManager
+         void SetOverlayEnabled(unsigned int overlay_id, bool is_enabled);
+         void CropToActiveWindowToggle(unsigned int overlay_id);
+         void SwitchToWindow(HWND window, bool warp_cursor);
+-        void OverlayDirectDragStart(unsigned int overlay_id);
++        void OverlayDirectDragStart(unsigned int overlay_id, vr::TrackedDeviceIndex_t device_index = vr::k_unTrackedDeviceIndexInvalid);
+         void OverlayDirectDragFinish(unsigned int overlay_id);
+ 
+         VRInput& GetVRInput();
+diff --git a/src/DesktopPlus/VRInput.cpp b/src/DesktopPlus/VRInput.cpp
+index 92b90d3..5c7da58 100644
+--- a/src/DesktopPlus/VRInput.cpp
++++ b/src/DesktopPlus/VRInput.cpp
+@@ -22,6 +22,7 @@ VRInput::VRInput() : m_HandleActionsetShortcuts(vr::k_ulInvalidActionSetHandle),
+                      m_HandleActionLaserPointerMiddleClick(vr::k_ulInvalidActionHandle),
+                      m_HandleActionLaserPointerAux01Click(vr::k_ulInvalidActionHandle),
+                      m_HandleActionLaserPointerAux02Click(vr::k_ulInvalidActionHandle),
++                     m_HandleActionLaserPointerDrag(vr::k_ulInvalidActionHandle),
+                      m_HandleActionLaserPointerScrollDiscrete(vr::k_ulInvalidActionHandle),
+                      m_HandleActionLaserPointerScrollSmooth(vr::k_ulInvalidActionHandle),
+                      m_HandleActionLaserPointerHaptic(vr::k_ulInvalidActionHandle),
 diff --git a/src/DesktopPlusUI/DesktopPlusUI.cpp b/src/DesktopPlusUI/DesktopPlusUI.cpp
 index 70b3aae..8230e33 100644
 --- a/src/DesktopPlusUI/DesktopPlusUI.cpp
@@ -427,7 +702,7 @@ index 751374f..4571e98 100644
                  }
              }
 diff --git a/src/DesktopPlusUI/UIManager.cpp b/src/DesktopPlusUI/UIManager.cpp
-index a61e3c5..106f8b4 100644
+index a61e3c5..53edbb7 100644
 --- a/src/DesktopPlusUI/UIManager.cpp
 +++ b/src/DesktopPlusUI/UIManager.cpp
 @@ -1,4 +1,8 @@
@@ -492,7 +767,33 @@ index a61e3c5..106f8b4 100644
      //If outside of active time, throttle to 1 frameskip or just use user frameskip value if it's higher
      //This mainly causes Performance Monitor to animated at half rate. Other animating things are supposed to add active time
      return std::max((m_LastActiveTick + s_MsBeforeIdle < ::GetTickCount64()) ? 1 : 0, ConfigManager::GetValue(configid_int_performance_ui_frameskip));
-@@ -402,6 +423,7 @@ void UIManager::SetOverlayInputEnabled(bool is_enabled)
+@@ -350,6 +371,7 @@ void UIManager::DisplayDashboardAppError(const std::string& str) //Ideally this
+ 
+ void UIManager::DisplayInitialSetupNotification()
+ {
++    const std::string xs_notice = "Desktop+ XS is ready. Launch DesktopPlus.exe manually. SteamVR autostart is off by default; you can opt in under Settings > Miscellaneous > Startup.";
+     //Check if the user is currently using the HMD and display the initial setup message as a VR notification instead then
+     bool use_vr_notification = false;
+     vr::EDeviceActivityLevel activity_level = vr::VRSystem()->GetTrackedDeviceActivityLevel(vr::k_unTrackedDeviceIndex_Hmd);
+@@ -368,7 +390,7 @@ void UIManager::DisplayInitialSetupNotification()
+         vr::VRNotificationId notification_id = 0; //Unused, but documentation doesn't say if passing nullptr is allowed, so we pass this
+         std::string message = TranslationManager::GetString(tstr_NotificationInitialStartupTitleVR);
+         message += "\n";
+-        message += TranslationManager::GetString(tstr_NotificationInitialStartupMessage);
++        message += xs_notice.c_str();
+ 
+         //Despite being sent after overlay creation, it may not be returned right away, so keep trying a bit
+         for (int tries = 0; tries < 20; ++tries)
+@@ -387,7 +409,7 @@ void UIManager::DisplayInitialSetupNotification()
+     else
+     {
+         ::MessageBoxW(nullptr,
+-                      WStringConvertFromUTF8(TranslationManager::GetString(tstr_NotificationInitialStartupMessage)).c_str(), 
++                      WStringConvertFromUTF8(xs_notice.c_str()).c_str(), 
+                       WStringConvertFromUTF8(TranslationManager::GetString(tstr_NotificationInitialStartupTitleDesktop)).c_str(), MB_OK);
+     }
+ }
+@@ -402,6 +424,7 @@ void UIManager::SetOverlayInputEnabled(bool is_enabled)
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleOverlayProperties, input_method);
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleKeyboard,          input_method);
      vr::VROverlay()->SetOverlayInputMethod(m_OvrlHandleAuxUI,             input_method);
@@ -500,7 +801,7 @@ index a61e3c5..106f8b4 100644
  }
  
  UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t overlay_handle) const
-@@ -420,6 +442,7 @@ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t over
+@@ -420,6 +443,7 @@ UITexspaceID UIManager::GetTexspaceIDForOverlayHandle(vr::VROverlayHandle_t over
      else if (overlay_handle == m_OvrlHandleAuxUI)
          overlay_texspace = ui_texspace_aux_ui;
  
@@ -508,7 +809,7 @@ index a61e3c5..106f8b4 100644
      return overlay_texspace;
  }
  
-@@ -549,6 +572,12 @@ vr::EVRInitError UIManager::InitOverlay()
+@@ -549,6 +573,12 @@ vr::EVRInitError UIManager::InitOverlay()
              vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleKeyboard,           &mouse_scale);
              vr::VROverlay()->SetOverlayMouseScale(m_OvrlHandleAuxUI,              &mouse_scale);
  
@@ -521,7 +822,7 @@ index a61e3c5..106f8b4 100644
              SetOverlayInputEnabled(true);
  
              //Setup texture bounds for all overlays
-@@ -594,6 +623,11 @@ vr::EVRInitError UIManager::InitOverlay()
+@@ -594,6 +624,11 @@ vr::EVRInitError UIManager::InitOverlay()
              bounds.vMax = rect_keyboard.GetBR().y / tex_height;
              vr::VROverlay()->SetOverlayTextureBounds(m_OvrlHandleKeyboard, &bounds);
  
@@ -533,7 +834,7 @@ index a61e3c5..106f8b4 100644
              //Set curve pitch for overlay bar. This adjusts the pitch to match the SteamVR dashboard
              vr::VROverlay()->SetOverlayPreCurvePitch(m_OvrlHandleOverlayBar, 0.20f);
          }
-@@ -850,7 +884,12 @@ void UIManager::HandleIPCMessage(const MSG& msg, bool handle_delayed)
+@@ -850,7 +885,12 @@ void UIManager::HandleIPCMessage(const MSG& msg, bool handle_delayed)
                  }
                  case ipcact_lpointer_ui_drag:
                  {
@@ -547,7 +848,7 @@ index a61e3c5..106f8b4 100644
                      break;
                  }
              }
-@@ -1096,6 +1135,10 @@ bool UIManager::HasDelayedIPCMessages() const
+@@ -1096,6 +1136,10 @@ bool UIManager::HasDelayedIPCMessages() const
  
  void UIManager::OnInitDone()
  {
@@ -558,7 +859,7 @@ index a61e3c5..106f8b4 100644
      //Re-apply active overlay ID since the first time config load couldn't apply it properly with the overlay not yet existing
      unsigned int overlay_props_active_id = m_WindowOverlayProperties.GetActiveOverlayID();
      m_WindowOverlayProperties.SetActiveOverlayID(overlay_props_active_id, true);
-@@ -1282,9 +1325,9 @@ vr::VROverlayHandle_t UIManager::GetOverlayHandleSystemUI() const
+@@ -1282,9 +1326,9 @@ vr::VROverlayHandle_t UIManager::GetOverlayHandleSystemUI() const
      return m_OvrlHandleSystemUI;
  }
  
@@ -570,7 +871,7 @@ index a61e3c5..106f8b4 100644
  }
  
  bool UIManager::IsDummyOverlayTransformUnstable() const
-@@ -1337,6 +1380,8 @@ DPRect UIManager::CalcRectForActiveTexspace()
+@@ -1337,6 +1381,8 @@ DPRect UIManager::CalcRectForActiveTexspace()
      if (m_AuxUI.IsActive())
          (rect.GetWidth() == 0) ? rect = UITextureSpaces::Get().GetRect(ui_texspace_aux_ui)              : rect.Add(UITextureSpaces::Get().GetRect(ui_texspace_aux_ui));
  
@@ -579,7 +880,7 @@ index a61e3c5..106f8b4 100644
      return rect;
  }
  
-@@ -2301,7 +2346,7 @@ void UIManager::UpdateOverlayDrag()
+@@ -2301,7 +2347,7 @@ void UIManager::UpdateOverlayDrag()
  
          vr::VROverlayHandle_t drag_overlay_handle = m_OverlayDragger.GetDragOverlayHandle();
  
@@ -588,7 +889,7 @@ index a61e3c5..106f8b4 100644
          {
              FinishOverlayDrag();
              return;
-@@ -2386,6 +2431,7 @@ void UIManager::StartOverlayDrag(vr::VROverlayHandle_t overlay_handle)
+@@ -2386,6 +2432,7 @@ void UIManager::StartOverlayDrag(vr::VROverlayHandle_t overlay_handle)
  
  void UIManager::FinishOverlayDrag()
  {
@@ -596,7 +897,7 @@ index a61e3c5..106f8b4 100644
      vr::VROverlayHandle_t drag_overlay_handle = m_OverlayDragger.GetDragOverlayHandle();
      Matrix4 matrix_relative_offset = m_OverlayDragger.DragFinish();
  
-@@ -2501,3 +2547,484 @@ void UIManager::TriggerLaserPointerHaptics(vr::VROverlayHandle_t overlay_handle,
+@@ -2501,3 +2548,484 @@ void UIManager::TriggerLaserPointerHaptics(vr::VROverlayHandle_t overlay_handle,
          IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_lpointer_trigger_haptics, device_index);
      }
  }
@@ -1137,10 +1438,10 @@ index 6a62df5..cff843d 100644
          bool GetRepeatFrame() const;
          void DecreaseRepeatFrameCount();
 diff --git a/src/DesktopPlusUI/WindowFloatingUIBar.cpp b/src/DesktopPlusUI/WindowFloatingUIBar.cpp
-index d9adf63..985a5ef 100644
+index d9adf63..aad795f 100644
 --- a/src/DesktopPlusUI/WindowFloatingUIBar.cpp
 +++ b/src/DesktopPlusUI/WindowFloatingUIBar.cpp
-@@ -60,254 +60,50 @@ void WindowFloatingUIMainBar::DisplayTooltipIfHovered(const char* text)
+@@ -60,254 +60,60 @@ void WindowFloatingUIMainBar::DisplayTooltipIfHovered(const char* text)
  
  void WindowFloatingUIMainBar::Update(float actionbar_height, unsigned int overlay_id)
  {
@@ -1184,7 +1485,29 @@ index d9adf63..985a5ef 100644
 -    DisplayTooltipIfHovered(TranslationManager::GetString( (actionbar_was_enabled) ? tstr_FloatingUIActionBarHideTip : tstr_FloatingUIActionBarShowTip ));
 -    //
 -
--    ImGui::SameLine();
++    auto& data = OverlayManager::Get().GetConfigData(overlay_id);
++    const auto& rect = UITextureSpaces::Get().GetRect(ui_texspace_floating_ui);
++    ImGui::SetNextWindowPos(ImVec2((float)rect.GetCenter().x, (float)rect.Min.y+8), 0, ImVec2(0.5f,0));
++    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32,39,46,255));
++    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(57,67,76,255));
++    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21,28,34,255));
++    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(52,65,76,255));
++    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(233,238,242,255));
++    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
++    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
++    ImGui::Begin("WindowFloatingUIMainBar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
++        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
++    ImGui::TextUnformatted(data.ConfigNameStr.substr(0,32).c_str());
++    auto change_width = [&](float multiplier) {
++        float& width = data.ConfigFloat[configid_float_overlay_width];
++        width = clamp(width*multiplier, 0.15f, 8.0f);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,(int)overlay_id);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_float_overlay_width,width);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,-1);
++    };
++    if (ImGui::Button("Size -5%")) change_width(0.95f);
++    ImGui::SameLine(); if (ImGui::Button("Size +5%")) change_width(1.05f);
+     ImGui::SameLine();
 -
 -    //Extra buttons
 -    if (overlay_data.ConfigBool[configid_bool_overlay_floatingui_extras_enabled])
@@ -1380,28 +1703,15 @@ index d9adf63..985a5ef 100644
 -    m_Pos  = ImGui::GetWindowPos();
 -    m_Size = ImGui::GetWindowSize();
 -
-+    auto& data = OverlayManager::Get().GetConfigData(overlay_id);
-+    const auto& rect = UITextureSpaces::Get().GetRect(ui_texspace_floating_ui);
-+    ImGui::SetNextWindowPos(ImVec2((float)rect.GetCenter().x, (float)rect.Min.y+8), 0, ImVec2(0.5f,0));
-+    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32,39,46,255));
-+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(57,67,76,255));
-+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21,28,34,255));
-+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(52,65,76,255));
-+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(233,238,242,255));
-+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
-+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-+    ImGui::Begin("WindowFloatingUIMainBar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-+        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
-+    ImGui::TextUnformatted(data.ConfigNameStr.substr(0,32).c_str());
-+    auto change_width = [&](float multiplier) {
-+        float& width = data.ConfigFloat[configid_float_overlay_width];
-+        width = clamp(width*multiplier, 0.15f, 8.0f);
++    bool& locked = data.ConfigBool[configid_bool_overlay_transform_locked];
++    if (ImGui::Button(locked ? "Unlock" : "Lock"))
++    {
++        locked = !locked;
 +        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,(int)overlay_id);
-+        IPCManager::Get().PostConfigMessageToDashboardApp(configid_float_overlay_width,width);
++        IPCManager::Get().PostConfigMessageToDashboardApp(configid_bool_overlay_transform_locked,locked);
 +        IPCManager::Get().PostConfigMessageToDashboardApp(configid_int_state_overlay_current_id_override,-1);
-+    };
-+    if (ImGui::Button("Size -5%")) change_width(0.95f);
-+    ImGui::SameLine(); if (ImGui::Button("Size +5%")) change_width(1.05f);
++    }
++    DisplayTooltipIfHovered("Locked panels ignore grip. Trigger interaction works while locked or unlocked.");
 +    ImGui::SameLine(); if (ImGui::Button("Properties"))
 +    {
 +        auto& properties = UIManager::Get()->GetOverlayPropertiesWindow();
@@ -1537,7 +1847,7 @@ index 083852b..2ac4e7f 100644
  const char* const g_AppKeyTheaterScreen     = "elvissteinjr.DesktopPlusTheaterScreen";  //We need an app with "starts_theater_mode", but we can't add that to the app manifest written by Steam
  
 diff --git a/src/Shared/Logging.h b/src/Shared/Logging.h
-index db5fc7e..6376c2a 100644
+index db5fc7e..3a94cf8 100644
 --- a/src/Shared/Logging.h
 +++ b/src/Shared/Logging.h
 @@ -7,7 +7,7 @@
@@ -1545,7 +1855,68 @@ index db5fc7e..6376c2a 100644
  //DPLUS_SHA is set externally for nightly builds to use the commit hash in version string
  //DPLUS_SHA is also always defined but usually empty... so we detect this with some constexpr trickery instead of messing with the build system even more
 -constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ 3.6" : "Desktop+ " DPLUS_SHA;
-+constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.3.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
++constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.3.1 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
  
  //Version written to config file
  //Only really increased when backward incompatible changes were made (we fall back to default values when things are missing usually)
+diff --git a/src/Shared/OverlayDragger.cpp b/src/Shared/OverlayDragger.cpp
+index 2fa853f..e83684b 100644
+--- a/src/Shared/OverlayDragger.cpp
++++ b/src/Shared/OverlayDragger.cpp
+@@ -29,14 +29,14 @@ OverlayDragger::OverlayDragger() :
+     m_DashboardMatLast.zero();
+ }
+ 
+-void OverlayDragger::DragStartBase(bool is_gesture_drag)
++void OverlayDragger::DragStartBase(bool is_gesture_drag, vr::TrackedDeviceIndex_t device_hint)
+ {
+     if ( (IsDragActive()) || (IsDragGestureActive()) )
+         return;
+ 
+     //This is also used by DragGestureStart() (with is_gesture_drag = true), but only to convert between overlay origins.
+     //Doesn't need calls to the other DragUpdate() or DragFinish() functions in that case
+-    vr::TrackedDeviceIndex_t device_index = ConfigManager::Get().GetPrimaryLaserPointerDevice();
++    vr::TrackedDeviceIndex_t device_index = device_hint != vr::k_unTrackedDeviceIndexInvalid ? device_hint : ConfigManager::Get().GetPrimaryLaserPointerDevice();
+ 
+     vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
+     vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, vr::IVRSystemEx::GetTimeNowToPhotons(), poses, vr::k_unMaxTrackedDeviceCount);
+@@ -444,7 +444,7 @@ void OverlayDragger::ApplyDashboardScale(Matrix4& matrix)
+     matrix.setTranslation(translation);
+ }
+ 
+-void OverlayDragger::DragStart(unsigned int overlay_id)
++void OverlayDragger::DragStart(unsigned int overlay_id, vr::TrackedDeviceIndex_t device_hint)
+ {
+     if ( (IsDragActive()) || (IsDragGestureActive()) )
+         return;
+@@ -458,7 +458,7 @@ void OverlayDragger::DragStart(unsigned int overlay_id)
+     m_DragModeOverlayHandle       = data.ConfigHandle[configid_handle_overlay_state_overlay_handle];
+     m_DragModeMaxWidth            = FLT_MAX;
+ 
+-    DragStartBase(false);
++    DragStartBase(false,device_hint);
+ }
+ 
+ void OverlayDragger::DragStart(vr::VROverlayHandle_t overlay_handle, OverlayOrigin overlay_origin)
+diff --git a/src/Shared/OverlayDragger.h b/src/Shared/OverlayDragger.h
+index e2c9fee..96a09bb 100644
+--- a/src/Shared/OverlayDragger.h
++++ b/src/Shared/OverlayDragger.h
+@@ -32,7 +32,7 @@ class OverlayDragger
+         float m_DashboardHMD_Y;                 //The HMDs y-position when the dashboard was activated. Used for dashboard-relative positioning
+         Vector3 m_TempStandingPosition;         //Standing position updated when the dashboard tab is activated or drag-mode activated while dashboard tab closed. Used as semi-fixed reference point
+ 
+-        void DragStartBase(bool is_gesture_drag = false);
++        void DragStartBase(bool is_gesture_drag = false, vr::TrackedDeviceIndex_t device_hint = vr::k_unTrackedDeviceIndexInvalid);
+         void DragGestureStartBase();
+ 
+         void TransformForceUpright(Matrix4& transform) const;
+@@ -47,7 +47,7 @@ class OverlayDragger
+         Matrix4 GetBaseOffsetMatrix(OverlayOrigin overlay_origin, const OverlayOriginConfig& origin_config);
+         void ApplyDashboardScale(Matrix4& matrix);
+ 
+-        void DragStart(unsigned int overlay_id);
++        void DragStart(unsigned int overlay_id, vr::TrackedDeviceIndex_t device_hint = vr::k_unTrackedDeviceIndexInvalid);
+         void DragStart(vr::VROverlayHandle_t overlay_handle, OverlayOrigin overlay_origin = ovrl_origin_room); //Not recommended to use with origins that have config values
+         void DragUpdate();
+         void DragAddDistance(float distance);

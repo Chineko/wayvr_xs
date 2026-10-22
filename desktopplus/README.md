@@ -1,10 +1,29 @@
-# Desktop+ XS 0.3.0
+# Desktop+ XS 0.3.1
 
 Windows now uses Desktop+ 3.6 as its foundation. The user confirmed that both
 unmodified capture backends work on their 5120x1440 display without issues.
 The Rust Windows prototype is retained as a reference; current development
 uses Desktop+'s native capture, rendering, input and controller systems.
 Linux WayVR development remains separate.
+
+## Changes in 0.3.1
+
+- Screen grip capture now survives pointer focus changes. It binds to the
+  initiating controller and original panel until release, handles a squeeze held
+  before entering the panel, and releases if the action/device disappears.
+  Trigger still clicks outside a grab; explicit transform locks still apply.
+  The diagnostic log distinguishes started, released, transform-locked and
+  tracking-invalid grab attempts. The panel strip now has an explicit Lock/Unlock
+  button so locks left from older layouts are visible and easy to clear. Settings
+  uses its existing working grab path.
+- SteamVR autostart defaults **off**. The first run of this update also clears the
+  XS autostart flag left by earlier builds; a marker in `xs-ui.ini` prevents
+  repeatedly overriding a later explicit opt-in. Settings > Miscellaneous >
+  Startup retains the native autostart checkbox. This affects only XS's app key.
+- During the user's encoder check, Windows' per-process GPU counters attributed
+  79% Video Encode usage to `VirtualDesktop.Streamer`, and the user confirmed it
+  remained high with XS closed. XS contains no video encoding/streaming pipeline.
+  No Virtual Desktop quality, codec, bitrate or refresh setting is changed.
 
 ## Changes in 0.3.0
 
@@ -41,14 +60,14 @@ automatic relaunch. Start DesktopPlus.exe again when you want the panels back.
 
 1. Exit the baseline Desktop+ copy and the Rust WayVR Windows prototype.
    Keep SteamVR and Virtual Desktop running, with the headset connected.
-2. Extract `DesktopPlus-XS-0.3.0-windows-x64.zip` into a fresh folder and run
+2. Extract `DesktopPlus-XS-0.3.1-windows-x64.zip` into a fresh folder and run
    `DesktopPlus.exe`. Complete the upstream first-run setup if shown.
 3. Open Desktop+ Settings > Profiles > Overlays. The new **XS Ultrawide** section
    appears above the normal profile list in VR and in desktop mode.
 4. Select the monitor and **Graphics Capture** or **Desktop Duplication**, then click **Dual**,
    **Thirds**, or **Wide center**. No SteamVR restart is needed between layouts.
 
-The version in Settings/logs is **Desktop+ XS 0.3.0 (Desktop+ 3.6)**. If the XS
+The version in Settings/logs is **Desktop+ XS 0.3.1 (Desktop+ 3.6)**. If the XS
 buttons are absent, check that the running copy is this build rather than the
 unmodified baseline or a Steam installation. Run one Desktop+ copy at a time.
 For desktop configuration use `DesktopPlusUI.exe --DesktopMode` while the main
@@ -150,7 +169,12 @@ widths (1080,1280,1920,1921,2560,3440,5120), odd-width remainder coverage, all l
 boundaries and monitor origins including negative coordinates. Local release
 build and fresh patch application are checked.
 
-Headset acceptance of 0.3.0 remains necessary: switch all three
+The 0.3.0 headset test confirmed Settings grabbing but reported failed screen
+panel grabbing. Production grip-state regression checks cover squeeze-before-hit,
+focus/target changes, release without hover, action/device loss and independent
+hands. The focus-leave cancellation path now excludes active grip captures.
+
+Headset acceptance of 0.3.1 remains necessary: switch all three
 layouts with both backends, test seam clicks, drag a panel, and load XS Previous
 Layout to check recovery of the preceding setup. Also check the normal profile
 list still fits and scrolls in both the VR and desktop interfaces.
