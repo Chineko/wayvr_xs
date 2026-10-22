@@ -31,6 +31,12 @@ Linux WayVR development remains separate.
   idle throttling and UI frame skipping. Capture backends remain upstream;
   headset testing is needed to assess the reported intermittent lag.
 
+Quit using **Quick Actions > Exit XS**, **Settings > Exit Desktop+ XS**, or the
+Windows notification-area icon's **Quit** command. All three use the native
+shutdown path, save the workspace and wrist preferences, and leave SteamVR and
+Virtual Desktop running. The exit action also prevents the UI's desktop-mode
+automatic relaunch. Start DesktopPlus.exe again when you want the panels back.
+
 ## Run
 
 1. Exit the baseline Desktop+ copy and the Rust WayVR Windows prototype.
@@ -157,6 +163,8 @@ releasing trigger during a grip drag. Add a panel and verify existing panels sta
 put. Open/close each wrist drawer and media strip, check the base stays stationary,
 then test left/right attachment, tracking loss/reconnection and empty-space
 pointer pass-through. Check CPU/RAM readings, keyboard/settings and media keys.
+Finally exit using the wrist, confirm SteamVR/Virtual Desktop stay up, then reopen
+DesktopPlus.exe and check the workspace returns. Repeat exit from Settings or tray.
 Only Desktop+ needs to restart for this update; keep SteamVR/Virtual Desktop up.
 
 ## Build and source
