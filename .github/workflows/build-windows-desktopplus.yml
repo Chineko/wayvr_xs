@@ -1,0 +1,31 @@
+name: Build DesktopPlus XS Windows
+
+on:
+  push:
+    branches: [feat/windows-steamvr]
+    paths:
+      - 'desktopplus/**'
+      - '.github/workflows/build-windows-desktopplus.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktopplus-xs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native DesktopPlus with XS controls
+        shell: pwsh
+        run: ./desktopplus/build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktopplus-xs-windows-x64-and-source
+          path: desktopplus/dist/*.zip
+          if-no-files-found: error
+          retention-days: 14

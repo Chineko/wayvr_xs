@@ -1,5 +1,10 @@
 # WayVR XS for Windows — first native prototype
 
+**Archived prototype.** Active Windows work has moved to
+[Desktop+ XS](../desktopplus/README.md), after both upstream capture backends
+passed the user's baseline test. The instructions below describe the old Rust
+prototype; current Windows CI builds Desktop+ XS instead.
+
 This is a separate Windows/SteamVR application on `feat/windows-steamvr`.
 It does not replace the Linux application. This milestone implements native
 D3D11 desktop capture and world-locked SteamVR panels. **Headset validation is

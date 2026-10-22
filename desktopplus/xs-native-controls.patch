@@ -1,0 +1,87 @@
+diff --git a/src/DesktopPlusUI/WindowSettings.cpp b/src/DesktopPlusUI/WindowSettings.cpp
+index 8326986..ded3020 100644
+--- a/src/DesktopPlusUI/WindowSettings.cpp
++++ b/src/DesktopPlusUI/WindowSettings.cpp
+@@ -2855,11 +2855,68 @@ void WindowSettings::UpdatePageProfiles()
+ 
+     ImGui::Indent();
+ 
++    // XS adds presets to the native profile workflow; capture and interaction stay upstream.
++    const float xs_begin_y = ImGui::GetCursorPosY();
++    static int xs_capture_method = 0;
++    static std::string xs_error;
++    ImGui::TextUnformatted("XS Ultrawide - Desktop 1, 5120x1440");
++    ImGui::SetNextItemWidth(-1.0f);
++    ImGui::Combo("##XSCaptureMethod", &xs_capture_method, "Graphics Capture\0Desktop Duplication\0");
++    const char* xs_labels[] = {"Dual##XS", "Thirds##XS", "Wide center##XS"};
++    const char* xs_layouts[] = {"Dual", "Thirds", "Wide Center"};
++    for (int xs_layout = 0; xs_layout < 3; ++xs_layout)
++    {
++        if (xs_layout != 0) ImGui::SameLine();
++        if (ImGui::Button(xs_labels[xs_layout]))
++        {
++            const std::string profile = std::string("XS 5120 ") + xs_layouts[xs_layout] + " - " +
++                ((xs_capture_method == 0) ? "Graphics Capture" : "Desktop Duplication");
++            const std::wstring path = WStringConvertFromUTF8((ConfigManager::Get().GetApplicationPath() + "profiles/" + profile + ".ini").c_str());
++            xs_error.clear();
++            if (!FileExists(path.c_str()))
++            {
++                xs_error = "XS preset file missing; extract the complete XS package.";
++            }
++            else if ((OverlayManager::Get().GetOverlayCount() != 0) &&
++                     !ConfigManager::Get().SaveMultiOverlayProfileToFile("XS Previous Layout.ini"))
++            {
++                xs_error = "Could not save XS Previous Layout; your layout was not replaced.";
++            }
++            else if (!ConfigManager::Get().LoadMultiOverlayProfileFromFile(profile + ".ini"))
++            {
++                xs_error = "Could not load the XS preset.";
++            }
++            else
++            {
++                m_ProfileSelectionName = profile;
++                IPCManager::Get().SendStringToDashboardApp(configid_str_state_profile_name_load, profile, UIManager::Get()->GetWindowHandle());
++                IPCManager::Get().PostMessageToDashboardApp(ipcmsg_action, ipcact_overlay_profile_load, ipcactv_ovrl_profile_multi);
++                UIManager::Get()->OnProfileLoaded();
++                m_ProfileList = ConfigManager::Get().GetOverlayProfileList();
++                const auto selected = std::find(m_ProfileList.begin(), m_ProfileList.end(), profile);
++                list_id = (selected == m_ProfileList.end()) ? -1 : int(std::distance(m_ProfileList.begin(), selected));
++                scroll_to_selection = true;
++                delete_confirm_state = false;
++                has_loading_failed = false;
++                has_deletion_failed = false;
++            }
++        }
++    }
++    ImGui::TextWrapped("Replaces the overlay set. A backup is saved as XS Previous Layout.");
++    if (!xs_error.empty())
++    {
++        ImGui::PushStyleColor(ImGuiCol_Text, Style_ImGuiCol_TextError);
++        ImGui::TextWrapped("%s", xs_error.c_str());
++        ImGui::PopStyleColor();
++    }
++    ImGui::Separator();
++    const float xs_controls_height = ImGui::GetCursorPosY() - xs_begin_y;
++
+     ImGui::SetNextItemWidth(-1.0f);
+     const float item_height = ImGui::GetFontSize() + style.ItemSpacing.y;
+     const float inner_padding = style.FramePadding.y + style.FramePadding.y + style.ItemInnerSpacing.y;
+     const float item_count = (UIManager::Get()->IsInDesktopMode()) ? ( (is_root_page) ? 22.0f : 20.0f ) : 16.0f;
+-    ImGui::BeginChild("ProfileList", ImVec2(0.0f, (item_height * item_count) + inner_padding - m_WarningHeight), true);
++    ImGui::BeginChild("ProfileList", ImVec2(0.0f, std::max(item_height * 4.0f, (item_height * item_count) + inner_padding - m_WarningHeight - xs_controls_height)), true);
+ 
+     //List profiles
+     int index = 0;
+diff --git a/src/Shared/Logging.h b/src/Shared/Logging.h
+index db5fc7e..a93647e 100644
+--- a/src/Shared/Logging.h
++++ b/src/Shared/Logging.h
+@@ -7,7 +7,7 @@
+ //Version string logged and displayed in the UI
+ //DPLUS_SHA is set externally for nightly builds to use the commit hash in version string
+ //DPLUS_SHA is also always defined but usually empty... so we detect this with some constexpr trickery instead of messing with the build system even more
+-constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ 3.6" : "Desktop+ " DPLUS_SHA;
++constexpr const char* const k_pch_DesktopPlusVersion = (sizeof("" DPLUS_SHA) <= 1) ? "Desktop+ XS 0.1.0 (Desktop+ 3.6)" : "Desktop+ " DPLUS_SHA;
+ 
+ //Version written to config file
+ //Only really increased when backward incompatible changes were made (we fall back to default values when things are missing usually)

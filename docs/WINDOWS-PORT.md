@@ -1,5 +1,12 @@
 # Windows / SteamVR port
 
+**Current Windows foundation: Desktop+ 3.6.** The user confirmed both upstream
+capture backends work without issues on the 5120x1440 monitor. Active Windows
+development now uses the native Desktop+ build in [desktopplus/](../desktopplus/README.md),
+with XS layout controls and presets. Windows CI builds that target only.
+The Rust prototype and the notes below are retained as historical reference.
+The Linux WayVR branches remain separate.
+
 Branch: `feat/windows-steamvr`. Base: published tag `xs-v0.1.1`, commit
 `a24ca4257ca202578d28ece66ae84eaa0268be48`.
 

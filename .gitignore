@@ -3,6 +3,9 @@
 /xs-core/target/
 /windows/target/
 /windows/dist/
+/desktopplus/.upstream/
+/desktopplus/.tools/
+/desktopplus/dist/
 /packaging/arch/src/
 /packaging/arch/pkg/
 /packaging/arch/wayvr-xs/
