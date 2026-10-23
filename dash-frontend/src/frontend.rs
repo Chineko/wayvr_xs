@@ -452,7 +452,7 @@ impl<T: 'static> Frontend<T> {
 		Ok(())
 	}
 
-	fn set_tab_title(&mut self, translation: &str, icon: &str) -> anyhow::Result<()> {
+	fn set_tab_title(&mut self, title: Translation, icon: &str) -> anyhow::Result<()> {
 		let mut common = self.layout.common();
 
 		{
@@ -460,7 +460,7 @@ impl<T: 'static> Frontend<T> {
 				.state
 				.widgets
 				.cast_as::<WidgetLabel>(self.widgets.id_label_titlebar_title)?;
-			label.set_text(&mut common, Translation::from_translation_key(translation));
+			label.set_text(&mut common, title);
 		}
 
 		{
@@ -491,18 +491,18 @@ impl<T: 'static> Frontend<T> {
 			StyleSetRequest::Padding(taffy::Rect::length(padding)),
 		));
 
-		let (tab_translation, icon_path) = match tab_type {
-			TabType::Welcome => ("GETTING_STARTED", "dashboard/welcome.svg"),
-			TabType::Home => ("HOME_SCREEN", "dashboard/home.svg"),
-			TabType::Apps => ("APPLICATIONS", "dashboard/apps.svg"),
-			TabType::Games => ("GAMES", "dashboard/games.svg"),
-			TabType::Monado => ("MONADO_RUNTIME", "dashboard/monado.svg"),
-			TabType::Nightshift => ("NIGHTSHIFT", "dashboard/sleep.svg"),
-			TabType::Settings => ("SETTINGS", "dashboard/settings.svg"),
-			TabType::Donate => ("DONATE.SUPPORT_US", "dashboard/opencollective.svg"),
+		let (tab_title, icon_path) = match tab_type {
+			TabType::Welcome => (Translation::from_translation_key("GETTING_STARTED"), "dashboard/welcome.svg"),
+			TabType::Home => (Translation::from_translation_key("HOME_SCREEN"), "dashboard/home.svg"),
+			TabType::Apps => (Translation::from_translation_key("APPLICATIONS"), "dashboard/apps.svg"),
+			TabType::Games => (Translation::from_translation_key("GAMES"), "dashboard/games.svg"),
+			TabType::Monado => (Translation::from_translation_key("MONADO_RUNTIME"), "dashboard/monado.svg"),
+			TabType::Nightshift => (Translation::from_raw_text("Nightshift"), "dashboard/sleep.svg"),
+			TabType::Settings => (Translation::from_translation_key("SETTINGS"), "dashboard/settings.svg"),
+			TabType::Donate => (Translation::from_translation_key("DONATE.SUPPORT_US"), "dashboard/opencollective.svg"),
 		};
 
-		self.set_tab_title(tab_translation, icon_path)?;
+		self.set_tab_title(tab_title, icon_path)?;
 
 		let tab: Box<dyn Tab<T>> = match tab_type {
 			TabType::Welcome => Box::new(TabWelcome::new(self, widget_content.id, data)?),
