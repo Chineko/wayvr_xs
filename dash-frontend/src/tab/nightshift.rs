@@ -415,10 +415,10 @@ impl<T> TabNightshift<T> {
     fn refresh(&mut self, frontend: &mut Frontend<T>, state: &NightshiftState) -> anyhow::Result<()> {
         let mut common = frontend.layout.common();
 
-        set_label(&mut common, self.widgets.greeting, &greeting(state));
+        set_label(&mut common, self.widgets.greeting.clone(), &greeting(state));
         set_label(
             &mut common,
-            self.widgets.connection,
+            self.widgets.connection.clone(),
             if state.connected { "● Nightshift connected" } else { "○ Nightshift disconnected" },
         );
 
@@ -429,7 +429,7 @@ impl<T> TabNightshift<T> {
             "waking" => "Waking up…",
             _ => "Awake",
         };
-        set_label(&mut common, self.widgets.sleep_state, sleep_text);
+        set_label(&mut common, self.widgets.sleep_state.clone(), sleep_text);
         self.sleep_button.set_text(
             &mut common,
             Translation::from_raw_text(if sleeping { "Wake up" } else { "Enter sleep mode" }),
@@ -437,17 +437,17 @@ impl<T> TabNightshift<T> {
 
         set_label(
             &mut common,
-            self.widgets.brightness,
+            self.widgets.brightness.clone(),
             &format!("Current brightness  {}%", (state.brightness * 100.0).round() as u32),
         );
         set_label(
             &mut common,
-            self.widgets.sleep_target,
+            self.widgets.sleep_target.clone(),
             &format!("Sleep target  {}%", (state.sleep_target * 100.0).round() as u32),
         );
         set_label(
             &mut common,
-            self.widgets.heart_rate,
+            self.widgets.heart_rate.clone(),
             &state
                 .heart_rate
                 .map(|bpm| format!("Heart rate  {bpm} BPM"))
@@ -455,12 +455,12 @@ impl<T> TabNightshift<T> {
         );
         set_label(
             &mut common,
-            self.widgets.osc,
+            self.widgets.osc.clone(),
             if state.osc_enabled { "OSC  Running" } else { "OSC  Off" },
         );
         set_label(
             &mut common,
-            self.widgets.vrchat,
+            self.widgets.vrchat.clone(),
             &format!(
                 "VRChat  {}",
                 if state.vrchat_connected {
@@ -472,7 +472,7 @@ impl<T> TabNightshift<T> {
         );
         set_label(
             &mut common,
-            self.widgets.invites,
+            self.widgets.invites.clone(),
             &format!("Invite rules  {}", pretty_status(&state.invite_profile)),
         );
 
