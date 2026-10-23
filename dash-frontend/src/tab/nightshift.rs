@@ -97,6 +97,7 @@ impl NightshiftBridge {
                     if matches!(command, NightshiftCommand::Stop) {
                         break;
                     }
+                    let request_snapshot = matches!(command, NightshiftCommand::SetBrightness(_));
                     let payload = match command {
                         NightshiftCommand::EnterSleep => json!({
                             "type": "command",
@@ -123,6 +124,18 @@ impl NightshiftBridge {
                     line.push('\n');
                     if stream.write_all(line.as_bytes()).is_err() {
                         *slot = None;
+                        continue;
+                    }
+
+                    // Brightness changes should arrive as a delta event. Request one
+                    // authoritative snapshot after an interactive brightness change as
+                    // a cheap fallback so the VR panel never goes stale.
+                    if request_snapshot {
+                        let mut snapshot_request = json!({ "type": "get_state" }).to_string();
+                        snapshot_request.push('\n');
+                        if stream.write_all(snapshot_request.as_bytes()).is_err() {
+                            *slot = None;
+                        }
                     }
                 }
             });
@@ -137,10 +150,6 @@ impl NightshiftBridge {
 
     fn snapshot(&self) -> NightshiftState {
         self.state.lock().map(|state| state.clone()).unwrap_or_default()
-    }
-
-    fn send(&self, command: NightshiftCommand) {
-        let _ = self.commands.send(command);
     }
 }
 
@@ -253,7 +262,9 @@ fn apply_full_state(state: &mut NightshiftState, value: &Value) {
 }
 
 fn apply_event(state: &mut NightshiftState, event: &Value) {
-    let section = &event["state"];
+    let Some(section) = event.get("state").or_else(|| event.get("value")) else {
+        return;
+    };
     match event.get("type").and_then(Value::as_str) {
         Some("sleep_changed") => apply_sleep(state, section),
         Some("brightness_changed") => apply_brightness(state, section),
