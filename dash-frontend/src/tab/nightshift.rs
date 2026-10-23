@@ -2,6 +2,7 @@ use std::{
     env,
     io::{BufRead, BufReader, Write},
     marker::PhantomData,
+    net::Shutdown,
     os::unix::net::UnixStream,
     path::PathBuf,
     rc::Rc,
@@ -30,6 +31,8 @@ use crate::{
     frontend::Frontend,
     tab::{Tab, TabType},
 };
+
+const NIGHTSHIFT_PROTOCOL_VERSION: u64 = 1;
 
 #[derive(Clone, Debug, PartialEq)]
 struct NightshiftState {
@@ -74,6 +77,7 @@ struct NightshiftBridge {
     state: Arc<Mutex<NightshiftState>>,
     commands: mpsc::Sender<NightshiftCommand>,
     alive: Arc<AtomicBool>,
+    writer_slot: Arc<Mutex<Option<UnixStream>>>,
 }
 
 impl NightshiftBridge {
@@ -97,7 +101,7 @@ impl NightshiftBridge {
                     if matches!(command, NightshiftCommand::Stop) {
                         break;
                     }
-                    let request_snapshot = matches!(command, NightshiftCommand::SetBrightness(_));
+
                     let payload = match command {
                         NightshiftCommand::EnterSleep => json!({
                             "type": "command",
@@ -118,24 +122,15 @@ impl NightshiftBridge {
                         continue;
                     };
                     let Some(stream) = slot.as_mut() else {
+                        // Inputs issued while disconnected are intentionally dropped.
                         continue;
                     };
+
                     let mut line = payload.to_string();
                     line.push('\n');
                     if stream.write_all(line.as_bytes()).is_err() {
+                        let _ = stream.shutdown(Shutdown::Both);
                         *slot = None;
-                        continue;
-                    }
-
-                    // Brightness changes should arrive as a delta event. Request one
-                    // authoritative snapshot after an interactive brightness change as
-                    // a cheap fallback so the VR panel never goes stale.
-                    if request_snapshot {
-                        let mut snapshot_request = json!({ "type": "get_state" }).to_string();
-                        snapshot_request.push('\n');
-                        if stream.write_all(snapshot_request.as_bytes()).is_err() {
-                            *slot = None;
-                        }
                     }
                 }
             });
@@ -145,6 +140,7 @@ impl NightshiftBridge {
             state,
             commands,
             alive,
+            writer_slot,
         }
     }
 
@@ -157,6 +153,12 @@ impl Drop for NightshiftBridge {
     fn drop(&mut self) {
         self.alive.store(false, Ordering::Relaxed);
         let _ = self.commands.send(NightshiftCommand::Stop);
+
+        if let Ok(mut slot) = self.writer_slot.lock()
+            && let Some(stream) = slot.take()
+        {
+            let _ = stream.shutdown(Shutdown::Both);
+        }
     }
 }
 
@@ -173,6 +175,7 @@ fn connection_loop(
 ) {
     while alive.load(Ordering::Relaxed) {
         let Some(path) = socket_path() else {
+            set_connected(&state, false);
             thread::sleep(Duration::from_secs(1));
             continue;
         };
@@ -186,22 +189,45 @@ fn connection_loop(
             }
         };
 
-        let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
         let Ok(mut writer) = stream.try_clone() else {
+            set_connected(&state, false);
             thread::sleep(Duration::from_secs(1));
             continue;
         };
 
         let hello = json!({
             "type": "hello",
-            "protocol": 1,
+            "protocol": NIGHTSHIFT_PROTOCOL_VERSION,
             "client": "wayvr",
             "client_version": env!("CARGO_PKG_VERSION"),
         });
         let mut hello_line = hello.to_string();
         hello_line.push('\n');
         if writer.write_all(hello_line.as_bytes()).is_err() {
+            set_connected(&state, false);
             thread::sleep(Duration::from_secs(1));
+            continue;
+        }
+
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        let handshake_valid = match reader.read_line(&mut line) {
+            Ok(0) | Err(_) => false,
+            Ok(_) => serde_json::from_str::<Value>(line.trim_end())
+                .ok()
+                .is_some_and(|message| {
+                    message.get("type").and_then(Value::as_str) == Some("hello")
+                        && message.get("protocol").and_then(Value::as_u64)
+                            == Some(NIGHTSHIFT_PROTOCOL_VERSION)
+                }),
+        };
+
+        if !handshake_valid {
+            set_connected(&state, false);
+            if alive.load(Ordering::Relaxed) {
+                log::warn!("Nightshift daemon handshake failed or protocol version is incompatible");
+                thread::sleep(Duration::from_secs(1));
+            }
             continue;
         }
 
@@ -210,29 +236,24 @@ fn connection_loop(
         }
         set_connected(&state, true);
 
-        let mut reader = BufReader::new(stream);
         while alive.load(Ordering::Relaxed) {
-            let mut line = String::new();
+            line.clear();
             match reader.read_line(&mut line) {
-                Ok(0) => break,
+                Ok(0) | Err(_) => break,
                 Ok(_) => {
-                    if let Ok(message) = serde_json::from_str::<Value>(line.trim_end()) {
-                        if let Ok(mut state) = state.lock() {
-                            apply_message(&mut state, &message);
-                        }
+                    if let Ok(message) = serde_json::from_str::<Value>(line.trim_end())
+                        && let Ok(mut state) = state.lock()
+                    {
+                        apply_message(&mut state, &message);
                     }
                 }
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                    ) => {}
-                Err(_) => break,
             }
         }
 
         if let Ok(mut slot) = writer_slot.lock() {
-            *slot = None;
+            if let Some(stream) = slot.take() {
+                let _ = stream.shutdown(Shutdown::Both);
+            }
         }
         set_connected(&state, false);
     }
@@ -262,9 +283,10 @@ fn apply_full_state(state: &mut NightshiftState, value: &Value) {
 }
 
 fn apply_event(state: &mut NightshiftState, event: &Value) {
-    let Some(section) = event.get("state").or_else(|| event.get("value")) else {
+    let Some(section) = event.get("state") else {
         return;
     };
+
     match event.get("type").and_then(Value::as_str) {
         Some("sleep_changed") => apply_sleep(state, section),
         Some("brightness_changed") => apply_brightness(state, section),
