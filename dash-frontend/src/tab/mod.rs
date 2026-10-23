@@ -7,6 +7,7 @@ pub mod donate;
 pub mod games;
 pub mod home;
 pub mod monado;
+pub mod nightshift;
 pub mod settings;
 pub mod welcome;
 
@@ -16,6 +17,7 @@ pub enum TabType {
 	Apps,
 	Games,
 	Monado,
+	Nightshift,
 	Settings,
 	Welcome,
 	Donate,

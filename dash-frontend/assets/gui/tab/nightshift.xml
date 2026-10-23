@@ -1,0 +1,62 @@
+<layout version="2">
+  <elements>
+    <div flex_direction="column" gap="12" width="100%" height="100%">
+      <div flex_direction="column" gap="4">
+        <label id="label_greeting" size="28" weight="bold" color="on_background" />
+        <label id="label_connection" size="14" color="on_background_variant" />
+      </div>
+
+      <rectangle
+        color="background_variant"
+        round="12"
+        padding="18"
+        flex_direction="column"
+        gap="10"
+        width="100%"
+      >
+        <label text="Sleep mode" size="16" weight="bold" color="on_background_variant" />
+        <label id="label_sleep_state" size="28" weight="bold" color="on_background" />
+        <Button
+          id="btn_sleep_toggle"
+          width="100%"
+          height="44"
+          text="Enter sleep mode"
+          color="primary"
+          border_color="primary"
+        />
+
+        <rectangle height="1" width="100%" color="outline" />
+        <label id="label_brightness" size="16" color="on_background" />
+        <label id="label_sleep_target" size="16" color="on_background_variant" />
+
+        <div flex_direction="row" gap="8" width="100%">
+          <Button id="btn_brightness_25" text="25%" height="38" flex_grow="1" />
+          <Button id="btn_brightness_50" text="50%" height="38" flex_grow="1" />
+          <Button id="btn_brightness_100" text="100%" height="38" flex_grow="1" />
+        </div>
+      </rectangle>
+
+      <div flex_direction="row" gap="10" width="100%">
+        <rectangle color="background_variant" round="10" padding="14" flex_direction="column" gap="4" flex_grow="1">
+          <label text="Heart rate" size="13" color="on_background_variant" />
+          <label id="label_heart_rate" size="17" weight="bold" color="on_background" />
+        </rectangle>
+        <rectangle color="background_variant" round="10" padding="14" flex_direction="column" gap="4" flex_grow="1">
+          <label text="OSC" size="13" color="on_background_variant" />
+          <label id="label_osc" size="17" weight="bold" color="on_background" />
+        </rectangle>
+      </div>
+
+      <div flex_direction="row" gap="10" width="100%">
+        <rectangle color="background_variant" round="10" padding="14" flex_direction="column" gap="4" flex_grow="1">
+          <label text="VRChat" size="13" color="on_background_variant" />
+          <label id="label_vrchat" size="17" weight="bold" color="on_background" />
+        </rectangle>
+        <rectangle color="background_variant" round="10" padding="14" flex_direction="column" gap="4" flex_grow="1">
+          <label text="Invite rules" size="13" color="on_background_variant" />
+          <label id="label_invites" size="17" weight="bold" color="on_background" />
+        </rectangle>
+      </div>
+    </div>
+  </elements>
+</layout>
