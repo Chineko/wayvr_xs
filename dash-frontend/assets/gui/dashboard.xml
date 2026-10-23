@@ -32,7 +32,9 @@
   </template>
 
   <elements>
+    <!-- left/right separator (menu and rest) -->
     <div flex_direction="row" gap="8" width="100%" height="100%" padding="4" interactable="0">
+      <!-- LEFT MENU -->
       <div id="menu"
         width="~side_size"
         min_width="~side_size"
@@ -53,30 +55,46 @@
           <SideButton id="btn_side_apps" src_builtin="@/dashboard/apps.svg" tooltip="APPLICATIONS" tooltip_side="right" />
           <SideButton id="btn_side_games" src_builtin="@/dashboard/games.svg" tooltip="GAMES" tooltip_side="right" />
           <SideButton id="btn_side_monado" src_builtin="@/dashboard/monado.svg" tooltip="MONADO_RUNTIME" tooltip_side="right" />
-          <SideButton id="btn_side_nightshift" src_builtin="@/dashboard/sleep.svg" tooltip="Nightshift" tooltip_side="right" />
+          <Button
+            id="btn_side_nightshift"
+            round="100%"
+            width="~side_button_size"
+            height="~side_button_size"
+            color="background_contrast(transparent)"
+            border_color="background_contrast"
+          >
+            <sprite src_builtin="@/dashboard/sleep.svg" width="~side_sprite_size" height="~side_sprite_size" />
+          </Button>
           <rectangle height="2" color="outline" width="~side_sprite_size" />
           <SideButton id="btn_side_settings" src_builtin="@/dashboard/settings.svg" tooltip="SETTINGS" tooltip_side="right" />
         </rectangle>
       </div>
+      <!-- REST -->
+      <!-- top/content/bottom panel separator -->
       <div
         flex_direction="column"
         gap="8"
         width="100%"
         height="100%"
         overflow_x="scroll">
+        <!-- TOP PANEL -->
         <div position="relative" width="100%" height="~top_size" min_height="~top_size" max_height="~top_size" justify_content="end">
+          <!-- Title bar -->
           <div width="100%" align_items="center" justify_content="center">
             <rectangle min_width="300" height="100%" consume_mouse_events="1" round="100%" color="background_contrast" align_items="center" justify_content="center" gap="8">
               <sprite id="sprite_titlebar_icon" width="24" height="24" color="on_background_contrast" />
               <label id="label_titlebar_title" weight="bold" size="16" text="Title" color="on_background_contrast" />
             </rectangle>
           </div>
+          <!-- Close button -->
           <Button position="absolute" id="btn_close" color="background_contrast" border_color="background_contrast" round="100%" width="~top_size" height="~top_size" tooltip="CLOSE_WINDOW" tooltip_side="left"
             hover_color="danger" hover_border_color="danger(rgb-mult-0.5)" >
             <sprite src_builtin="@/dashboard/close.svg" width="32" height="32" />
           </Button>
         </div>
 
+        <!-- CONTENT -->
+        <!-- color and color2 alpha will be modified at runtime -->
         <rectangle
           id="rect_content"
           color2="background_contrast"
@@ -88,6 +106,7 @@
           overflow="scroll"
           position="relative"
         >
+          <!-- radial gradient -->
           <rectangle
             position="absolute" width="100%" height="100%"
             gradient="radial" color="background_variant(opacity-0.5)" color2="background_variant(transparent)" />
@@ -100,10 +119,13 @@
               width="100%"
               height="100%"
             >
+              <!-- padding set at runtime -->
+              <!-- filled-in at runtime -->
             </div>
           </div>
           <div position="absolute" id="popup_manager" width="100%" height="100%" />
         </rectangle>
+        <!-- BOTTOM PANEL -->
         <rectangle
           consume_mouse_events="1"
           width="100%"
@@ -117,18 +139,22 @@
           justify_content="space_between"
           color="background"
         >
+          <!-- left gradient -->
           <div position="absolute" width="100%" height="100%" justify_content="start">
             <rectangle position="absolute" width="40%" height="100%" color="shadow" color2="shadow(transparent)" round="8" gradient="horizontal" />
           </div>
 
+          <!-- right gradient -->
           <div position="absolute" width="100%" height="100%" justify_content="end">
             <rectangle position="absolute" width="40%" height="100%" color2="shadow" color="shadow(transparent)" round="8" gradient="horizontal" />
           </div>
 
+          <!-- top shine -->
           <div position="absolute" width="100%" height="100%" justify_content="center">
             <rectangle position="absolute" width="99%" height="2" color="highlight(opacity-0.2)" round="4" />
           </div>
 
+          <!-- Left bottom side -->
           <div margin_left="8">
             <Button id="btn_power" color="background(transparent)" border_color="background(transparent)" tooltip="POWER_OPTIONS.TITLE" tooltip_side="top">
               <sprite src_builtin="@/dashboard/power.svg" width="24" height="24" margin="8" />
@@ -141,6 +167,7 @@
             </Button>
           </div>
 
+          <!-- Right bottom side -->
           <div margin_right="16">
             <label id="label_time" weight="bold" size="16" color="on_background" />
           </div>
