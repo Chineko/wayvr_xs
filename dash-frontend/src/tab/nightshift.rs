@@ -33,6 +33,7 @@ use crate::{
 };
 
 const NIGHTSHIFT_PROTOCOL_VERSION: u64 = 1;
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Debug, PartialEq)]
 struct NightshiftState {
@@ -77,6 +78,7 @@ struct NightshiftBridge {
     state: Arc<Mutex<NightshiftState>>,
     commands: mpsc::Sender<NightshiftCommand>,
     alive: Arc<AtomicBool>,
+    dirty: Arc<AtomicBool>,
     writer_slot: Arc<Mutex<Option<UnixStream>>>,
 }
 
@@ -84,17 +86,21 @@ impl NightshiftBridge {
     fn spawn() -> Self {
         let state = Arc::new(Mutex::new(NightshiftState::default()));
         let alive = Arc::new(AtomicBool::new(true));
+        let dirty = Arc::new(AtomicBool::new(true));
         let writer_slot = Arc::new(Mutex::new(None::<UnixStream>));
         let (commands, command_rx) = mpsc::channel();
 
         {
             let state = state.clone();
             let alive = alive.clone();
+            let dirty = dirty.clone();
             let writer_slot = writer_slot.clone();
-            thread::spawn(move || connection_loop(state, alive, writer_slot));
+            thread::spawn(move || connection_loop(state, alive, dirty, writer_slot));
         }
 
         {
+            let state = state.clone();
+            let dirty = dirty.clone();
             let writer_slot = writer_slot.clone();
             thread::spawn(move || {
                 while let Ok(command) = command_rx.recv() {
@@ -131,6 +137,7 @@ impl NightshiftBridge {
                     if stream.write_all(line.as_bytes()).is_err() {
                         let _ = stream.shutdown(Shutdown::Both);
                         *slot = None;
+                        set_connected(&state, &dirty, false);
                     }
                 }
             });
@@ -140,18 +147,22 @@ impl NightshiftBridge {
             state,
             commands,
             alive,
+            dirty,
             writer_slot,
         }
     }
 
-    fn snapshot(&self) -> NightshiftState {
-        self.state.lock().map(|state| state.clone()).unwrap_or_default()
+    fn snapshot_if_dirty(&self) -> Option<NightshiftState> {
+        if !self.dirty.swap(false, Ordering::AcqRel) {
+            return None;
+        }
+        Some(self.state.lock().map(|state| state.clone()).unwrap_or_default())
     }
 }
 
 impl Drop for NightshiftBridge {
     fn drop(&mut self) {
-        self.alive.store(false, Ordering::Relaxed);
+        self.alive.store(false, Ordering::Release);
         let _ = self.commands.send(NightshiftCommand::Stop);
 
         if let Ok(mut slot) = self.writer_slot.lock()
@@ -168,14 +179,36 @@ fn socket_path() -> Option<PathBuf> {
         .map(|path| path.join("nightshift").join("nightshift.sock"))
 }
 
+fn hello_is_compatible(message: &Value) -> bool {
+    if message.get("type").and_then(Value::as_str) != Some("hello")
+        || message.get("protocol").and_then(Value::as_u64) != Some(NIGHTSHIFT_PROTOCOL_VERSION)
+    {
+        return false;
+    }
+
+    let Some(capabilities) = message.get("capabilities").and_then(Value::as_array) else {
+        return false;
+    };
+
+    let has_capability = |wanted: &str| {
+        capabilities
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|capability| capability == wanted)
+    };
+
+    has_capability("sleep") && has_capability("brightness")
+}
+
 fn connection_loop(
     state: Arc<Mutex<NightshiftState>>,
     alive: Arc<AtomicBool>,
+    dirty: Arc<AtomicBool>,
     writer_slot: Arc<Mutex<Option<UnixStream>>>,
 ) {
-    while alive.load(Ordering::Relaxed) {
+    while alive.load(Ordering::Acquire) {
         let Some(path) = socket_path() else {
-            set_connected(&state, false);
+            set_connected(&state, &dirty, false);
             thread::sleep(Duration::from_secs(1));
             continue;
         };
@@ -183,14 +216,15 @@ fn connection_loop(
         let stream = match UnixStream::connect(path) {
             Ok(stream) => stream,
             Err(_) => {
-                set_connected(&state, false);
+                set_connected(&state, &dirty, false);
                 thread::sleep(Duration::from_secs(1));
                 continue;
             }
         };
 
+        let _ = stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
         let Ok(mut writer) = stream.try_clone() else {
-            set_connected(&state, false);
+            set_connected(&state, &dirty, false);
             thread::sleep(Duration::from_secs(1));
             continue;
         };
@@ -204,7 +238,7 @@ fn connection_loop(
         let mut hello_line = hello.to_string();
         hello_line.push('\n');
         if writer.write_all(hello_line.as_bytes()).is_err() {
-            set_connected(&state, false);
+            set_connected(&state, &dirty, false);
             thread::sleep(Duration::from_secs(1));
             continue;
         }
@@ -215,28 +249,25 @@ fn connection_loop(
             Ok(0) | Err(_) => false,
             Ok(_) => serde_json::from_str::<Value>(line.trim_end())
                 .ok()
-                .is_some_and(|message| {
-                    message.get("type").and_then(Value::as_str) == Some("hello")
-                        && message.get("protocol").and_then(Value::as_u64)
-                            == Some(NIGHTSHIFT_PROTOCOL_VERSION)
-                }),
+                .is_some_and(|message| hello_is_compatible(&message)),
         };
 
         if !handshake_valid {
-            set_connected(&state, false);
-            if alive.load(Ordering::Relaxed) {
-                log::warn!("Nightshift daemon handshake failed or protocol version is incompatible");
+            set_connected(&state, &dirty, false);
+            if alive.load(Ordering::Acquire) {
+                log::warn!("Nightshift daemon handshake failed, lacks required capabilities, or uses an incompatible protocol");
                 thread::sleep(Duration::from_secs(1));
             }
             continue;
         }
 
+        let _ = reader.get_mut().set_read_timeout(None);
         if let Ok(mut slot) = writer_slot.lock() {
             *slot = Some(writer);
         }
-        set_connected(&state, true);
+        set_connected(&state, &dirty, true);
 
-        while alive.load(Ordering::Relaxed) {
+        while alive.load(Ordering::Acquire) {
             line.clear();
             match reader.read_line(&mut line) {
                 Ok(0) | Err(_) => break,
@@ -244,7 +275,11 @@ fn connection_loop(
                     if let Ok(message) = serde_json::from_str::<Value>(line.trim_end())
                         && let Ok(mut state) = state.lock()
                     {
+                        let before = state.clone();
                         apply_message(&mut state, &message);
+                        if *state != before {
+                            dirty.store(true, Ordering::Release);
+                        }
                     }
                 }
             }
@@ -255,13 +290,20 @@ fn connection_loop(
                 let _ = stream.shutdown(Shutdown::Both);
             }
         }
-        set_connected(&state, false);
+        set_connected(&state, &dirty, false);
     }
 }
 
-fn set_connected(state: &Arc<Mutex<NightshiftState>>, connected: bool) {
-    if let Ok(mut state) = state.lock() {
+fn set_connected(
+    state: &Arc<Mutex<NightshiftState>>,
+    dirty: &Arc<AtomicBool>,
+    connected: bool,
+) {
+    if let Ok(mut state) = state.lock()
+        && state.connected != connected
+    {
         state.connected = connected;
+        dirty.store(true, Ordering::Release);
     }
 }
 
@@ -370,7 +412,9 @@ impl<T> Tab<T> for TabNightshift<T> {
     }
 
     fn update(&mut self, frontend: &mut Frontend<T>, _time_ms: u32, _user_data: &mut T) -> anyhow::Result<()> {
-        let snapshot = self.bridge.snapshot();
+        let Some(snapshot) = self.bridge.snapshot_if_dirty() else {
+            return Ok(());
+        };
         if snapshot == self.last_state {
             return Ok(());
         }
@@ -439,7 +483,7 @@ impl<T> TabNightshift<T> {
             last_state: NightshiftState::default(),
             marker: PhantomData,
         };
-        let snapshot = tab.bridge.snapshot();
+        let snapshot = tab.bridge.snapshot_if_dirty().unwrap_or_default();
         tab.refresh(frontend, &snapshot)?;
         tab.last_state = snapshot;
         Ok(tab)
