@@ -584,6 +584,12 @@ impl<T: 'static> Frontend<T> {
 			FrontendTask::RecenterPlayspace,
 		);
 
+		// Nightshift quick action: Nightshift owns all of its own UI/state.
+		self.tasks.handle_button(
+			&self.state.fetch_component_as::<ComponentButton>("btn_nightshift")?,
+			FrontendTask::RunCommand("nightshiftctl".to_string(), vec!["overlay-show".to_string()]),
+		);
+
 		Ok(())
 	}
 
