@@ -95,9 +95,9 @@
   </template>
 
   <elements>
-    <!-- Fixed canvas reserves shelf, tooltip and battery space so the base never jumps. -->
+    <!-- The wrist canvas stays fixed in VR; Taffy gets the ruler for everything inside it. -->
     <div id="watch_canvas" width="584" height="880" padding="32" interactable="0" flex_direction="column" gap="8" align_items="center">
-      <div id="shelf_slot" width="520" height="320" flex_shrink="0" interactable="0">
+      <div id="shelf_slot" width="100%" height="320" flex_shrink="0" interactable="0">
         <rectangle id="shelf_actions" display="none" width="100%" height="100%" macro="decorative_rect" round="20" padding="12" flex_direction="column" gap="10">
           <label text="QUICK ACTIONS" size="18" color="#A9B6C1" />
           <div gap="8" justify_content="space_between" width="100%">
